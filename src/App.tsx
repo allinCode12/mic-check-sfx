@@ -209,19 +209,45 @@ export default function App() {
     });
   }, [sounds]);
 
-  // Save states to LocalStorage on modifications
+  // Save states to LocalStorage on modifications (strip large base64 data URLs to avoid quota errors)
   useEffect(() => {
     if (sounds.length > 0) {
-      localStorage.setItem('micchecksfx_sounds', JSON.stringify(sounds));
+      const lightweight = sounds.map(s => {
+        if (s.url && s.url.startsWith('data:')) {
+          const { url, ...rest } = s;
+          return rest;
+        }
+        return s;
+      });
+      try {
+        localStorage.setItem('micchecksfx_sounds', JSON.stringify(lightweight));
+      } catch (e) {
+        console.warn('localStorage quota exceeded for sounds, skipping local cache:', e);
+      }
     }
   }, [sounds]);
 
   useEffect(() => {
-    localStorage.setItem('micchecksfx_script', JSON.stringify(script));
+    try {
+      localStorage.setItem('micchecksfx_script', JSON.stringify(script));
+    } catch (e) {
+      console.warn('localStorage quota exceeded for script, skipping local cache:', e);
+    }
   }, [script]);
 
   useEffect(() => {
-    localStorage.setItem('micchecksfx_bgm_tracks', JSON.stringify(bgmTracks));
+    const lightweight = bgmTracks.map(t => {
+      if (t.url && t.url.startsWith('data:')) {
+        const { url, ...rest } = t;
+        return rest;
+      }
+      return t;
+    });
+    try {
+      localStorage.setItem('micchecksfx_bgm_tracks', JSON.stringify(lightweight));
+    } catch (e) {
+      console.warn('localStorage quota exceeded for bgmTracks, skipping local cache:', e);
+    }
   }, [bgmTracks]);
 
   // Fast poll interval (100ms) to sync active voice indicators in real-time
