@@ -17,10 +17,12 @@ import {
   FileMusic
 } from 'lucide-react';
 
-import { SFXSound, RadioPlayScript } from './types';
+import { SFXSound, RadioPlayScript, HistoryEntry } from './types';
 import { DEFAULT_RADIO_PLAY } from './utils/defaultScript';
-import { getAudioFile } from './utils/audioDb';
+import { getAudioFile, saveAudioFile } from './utils/audioDb';
 import { audioEngine } from './utils/audioEngine';
+import { getCustomSoundBlob } from './utils/customSound';
+import HistoryPanel from './components/HistoryPanel';
 
 import ScriptPanel from './components/ScriptPanel';
 import SFXPad from './components/SFXPad';
@@ -128,6 +130,10 @@ const PRESET_SOUNDS: SFXSound[] = [
 ];
 
 export default function App() {
+  const [historyList, setHistoryList] = useState<HistoryEntry[]>([]);
+  const [uploadsList, setUploadsList] = useState<string[]>([]);
+  const [activeTab, setActiveTab] = useState<'deck' | 'history'>('deck');
+
   const [sounds, setSounds] = useState<SFXSound[]>(() => {
     const saved = localStorage.getItem('micchecksfx_sounds');
     if (saved) {
@@ -164,17 +170,18 @@ export default function App() {
   const [showInfoPanel, setShowInfoPanel] = useState<boolean>(true);
   const importInputRef = useRef<HTMLInputElement | null>(null);
 
-  // Pre-cache custom uploaded audio blobs from IndexedDB on components mount
+  // Pre-cache custom uploaded audio blobs from URL or IndexedDB on components mount
   useEffect(() => {
     sounds.forEach(async (sound) => {
-      if (sound.isCustom && sound.customFileId) {
-        const fileBlob = await getAudioFile(sound.customFileId);
+      if (sound.isCustom) {
+        const fileBlob = await getCustomSoundBlob(sound);
         if (fileBlob) {
-          await audioEngine.cacheFile(sound.customFileId, fileBlob);
+          const cacheId = sound.customFileId || sound.id;
+          await audioEngine.cacheFile(cacheId, fileBlob);
         }
       }
     });
-  }, []);
+  }, [sounds]);
 
   // Save states to LocalStorage on modifications
   useEffect(() => {
@@ -205,6 +212,111 @@ export default function App() {
     audioEngine.setMasterVolume(isMuted ? 0 : masterVolume);
   }, [masterVolume, isMuted]);
 
+  // Load history and uploads from the site
+  const loadSiteData = useCallback(async () => {
+    const baseUrl = import.meta.env.BASE_URL;
+    try {
+      const historyRes = await fetch(`${baseUrl}history.json?t=${Date.now()}`);
+      if (historyRes.ok) {
+        const data = await historyRes.json();
+        setHistoryList(data);
+      }
+    } catch (e) {
+      console.log('No history.json found or failed to load:', e);
+    }
+
+    try {
+      const uploadsRes = await fetch(`${baseUrl}uploads.json?t=${Date.now()}`);
+      if (uploadsRes.ok) {
+        const data = await uploadsRes.json();
+        setUploadsList(data);
+      }
+    } catch (e) {
+      console.log('No uploads.json found or failed to load:', e);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadSiteData();
+  }, [loadSiteData]);
+
+  const handleRestoreVersion = (entry) => {
+    setScript(entry.script);
+    setSounds(entry.sounds);
+    setActiveTab('deck');
+  };
+
+  const handleAddSoundFromFile = async (filename) => {
+    const baseUrl = import.meta.env.BASE_URL;
+    const cleanName = filename.replace(/\.[^/.]+$/, '').replace(/[_-]/g, ' ');
+    const soundId = `snd_${Date.now()}`;
+    const nextOrder = sounds.length ? Math.max(...sounds.map(s => s.order)) + 1 : 0;
+    
+    const colorPresets = ['cyan', 'magenta', 'green', 'yellow', 'rose', 'amber', 'blue', 'purple'];
+    const selectedColor = colorPresets[sounds.length % colorPresets.length];
+    
+    const usedKeys = sounds.map((s) => s.keyShortcut).filter((k) => !!k);
+    let selectedKey = '';
+    for (let k = 1; k <= 9; k++) {
+      if (!usedKeys.includes(k.toString())) {
+        selectedKey = k.toString();
+        break;
+      }
+    }
+
+    const payload = {
+      id: soundId,
+      name: cleanName,
+      color: selectedColor,
+      keyShortcut: selectedKey,
+      isLooping: false,
+      volume: 0.75,
+      isCustom: true,
+      customFileId: soundId,
+      url: `uploads/${filename}`,
+      playCount: 0,
+      order: nextOrder
+    };
+
+    try {
+      const response = await fetch(`${baseUrl}uploads/${filename}`);
+      if (response.ok) {
+        const blob = await response.blob();
+        await saveAudioFile(soundId, blob);
+        await audioEngine.cacheFile(soundId, blob);
+      }
+    } catch (e) {
+      console.warn('Failed to pre-cache added sound from URL:', e);
+    }
+
+    setSounds((prev) => [...prev, payload]);
+    setActiveTab('deck');
+  };
+
+  // Auto-sync history in development mode when sounds or script change
+  useEffect(() => {
+    if (!import.meta.env.DEV) return;
+    if (sounds.length === 0) return;
+
+    const timer = setTimeout(async () => {
+      try {
+        const res = await fetch('/api/save-history', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ script, sounds })
+        });
+        const result = await res.json();
+        if (result.success && result.history) {
+          setHistoryList(result.history);
+        }
+      } catch (e) {
+        console.warn('Auto-save history failed:', e);
+      }
+    }, 2000);
+
+    return () => clearTimeout(timer);
+  }, [sounds, script]);
+
   // Master Sound Play Trigger
   const triggerPlaySound = useCallback(async (sound: SFXSound) => {
     // Auto-initialize Audio Context if requested first time
@@ -216,18 +328,14 @@ export default function App() {
     );
 
     if (sound.isCustom) {
-      if (!sound.customFileId) {
-        console.error('Sound declared as custom but holds no file record ID.');
-        return;
-      }
-
-      const fileBlob = await getAudioFile(sound.customFileId);
+      const cacheId = sound.customFileId || sound.id;
+      const fileBlob = await getCustomSoundBlob(sound);
       if (!fileBlob) {
-        console.error('Audio asset was missing inside IndexedDB for ID:', sound.id);
+        console.error('Audio asset was missing for ID:', sound.id);
         return;
       }
 
-      await audioEngine.playFile(sound.id, sound.customFileId, fileBlob, sound.volume, sound.isLooping);
+      await audioEngine.playFile(sound.id, cacheId, fileBlob, sound.volume, sound.isLooping);
     } else {
       if (!sound.synthType) return;
       audioEngine.playSynth(sound.id, sound.synthType, sound.volume, sound.isLooping);
@@ -646,13 +754,48 @@ export default function App() {
 
           {/* Dynamic Playback controls & File configuration panel */}
           <div className="flex-1 flex flex-col min-h-0 bg-slate-900/40 border border-slate-800 rounded-xl p-4 overflow-hidden">
-            <div className="flex items-center justify-between gap-4 mb-4 shrink-0">
-              <div className="flex items-center gap-2">
-                <div className="w-2.5 h-2.5 rounded-full bg-cyan-400 animate-pulse" />
-                <h2 className="text-sm font-bold tracking-wider font-mono text-slate-300 uppercase">
-                  {isPracticeMode ? 'SFX BOARD BUILDER' : 'ON-AIR SFX LAUNCHPAD'}
-                </h2>
-              </div>
+            {/* Tabs Header */}
+            <div className="flex border-b border-slate-800/80 mb-4 shrink-0 font-mono text-xs select-none">
+              <button
+                type="button"
+                onClick={() => setActiveTab('deck')}
+                className={`pb-2 px-4 font-bold border-b-2 transition-all cursor-pointer uppercase tracking-wider ${
+                  activeTab === 'deck'
+                    ? 'border-cyan-500 text-cyan-400 font-extrabold font-bold'
+                    : 'border-transparent text-slate-400 hover:text-slate-200'
+                }`}
+                style={{ borderBottomColor: activeTab === 'deck' ? '#06b6d4' : 'transparent' }}
+              >
+                SFX Launchpad & Builder
+              </button>
+              <button
+                type="button"
+                onClick={() => setActiveTab('history')}
+                className={`pb-2 px-4 font-bold border-b-2 transition-all cursor-pointer uppercase tracking-wider flex items-center gap-1.5 ${
+                  activeTab === 'history'
+                    ? 'border-cyan-500 text-cyan-400 font-extrabold font-bold'
+                    : 'border-transparent text-slate-400 hover:text-slate-200'
+                }`}
+                style={{ borderBottomColor: activeTab === 'history' ? '#06b6d4' : 'transparent' }}
+              >
+                History & Uploads
+                {historyList.length > 0 && (
+                  <span className="bg-slate-950 border border-slate-800 text-[10px] text-cyan-400 font-mono px-1.5 py-0.5 rounded-full leading-none font-bold">
+                    {historyList.length}
+                  </span>
+                )}
+              </button>
+            </div>
+
+            {activeTab === 'deck' ? (
+              <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
+                <div className="flex items-center justify-between gap-4 mb-4 shrink-0">
+                  <div className="flex items-center gap-2">
+                    <div className="w-2.5 h-2.5 rounded-full bg-cyan-400 animate-pulse" />
+                    <h2 className="text-sm font-bold tracking-wider font-mono text-slate-300 uppercase">
+                      {isPracticeMode ? 'SFX BOARD BUILDER' : 'ON-AIR SFX LAUNCHPAD'}
+                    </h2>
+                  </div>
 
               {/* Master IO backups */}
               {isPracticeMode ? (
@@ -741,7 +884,20 @@ export default function App() {
               )}
             </div>
           </div>
-        </section>
+        ) : (
+          <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
+            <HistoryPanel
+              historyList={historyList}
+              uploadsList={uploadsList}
+              onLoadVersion={handleRestoreVersion}
+              onAddSoundFromFile={handleAddSoundFromFile}
+              isDev={import.meta.env.DEV}
+              onRefresh={loadSiteData}
+            />
+          </div>
+        )}
+        </div>
+      </section>
       </main>
 
       {/* Cyberpunk Footer bar */}

@@ -7,6 +7,7 @@ export interface SFXSound {
   volume: number; // 0.0 to 1.0
   isCustom: boolean; // uploaded by user via file input
   customFileId?: string; // key in IndexedDB for file data
+  url?: string; // static URL to hosted file on the site
   synthType?: 'portal' | 'laser' | 'alarm' | 'shatter' | 'subdrop' | 'buzz' | 'hum' | 'spark'; // synthesis parameters
   playCount: number;
   order: number;
@@ -26,4 +27,13 @@ export interface RadioPlayScript {
   title: string;
   author: string;
   lines: ScriptLine[];
+}
+
+export interface HistoryEntry {
+  id: string;
+  timestamp: string;
+  formattedHour: string; // YYYY-MM-DD HH:00
+  formattedDate: string; // Friendly display label
+  script: RadioPlayScript;
+  sounds: SFXSound[];
 }

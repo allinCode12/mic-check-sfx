@@ -126,14 +126,41 @@ export default function SoundCreator({ onAddSound, existingSounds }: SoundCreato
       
       try {
         setIsUploading(true);
-        // Save the raw file blob into IndexedDB
+        // Save the raw file blob into IndexedDB for instant local playback
         await saveAudioFile(soundId, fileBlob);
         
-        // Let's decode and cache instantly inside the AudioEngine to prevent trigger delays
+        // Decode and cache instantly inside the AudioEngine to prevent trigger delays
         await audioEngine.cacheFile(soundId, fileBlob);
 
         payload.isCustom = true;
         payload.customFileId = soundId;
+
+        // If in development mode, upload the file to the local Vite dev server
+        if (import.meta.env.DEV) {
+          try {
+            const getBase64 = (blob: Blob): Promise<string> => {
+              return new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onload = () => resolve((reader.result as string).split(',')[1]);
+                reader.onerror = (err) => reject(err);
+                reader.readAsDataURL(blob);
+              });
+            };
+
+            const base64 = await getBase64(fileBlob);
+            const res = await fetch('/api/upload-file', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ filename: fileName, base64 })
+            });
+            const result = await res.json();
+            if (result.success) {
+              payload.url = result.url;
+            }
+          } catch (uploadErr) {
+            console.warn('Failed to upload file to local server, using local IndexedDB only:', uploadErr);
+          }
+        }
       } catch (err: any) {
         console.error(err);
         setUploadError('Failed storing local file in IndexedDB.');
