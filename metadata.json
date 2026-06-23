@@ -1,0 +1,6 @@
+{
+  "name": "Mic Check SFX",
+  "description": "A high-fidelity live classroom radio play soundboard and script synchronizer with custom synthesis, file storage, and dark cyber-neon performance theme.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

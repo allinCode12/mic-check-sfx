@@ -1,0 +1,78 @@
+@import "tailwindcss";
+
+@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap');
+
+@theme {
+  --font-sans: 'Outfit', ui-sans-serif, system-ui, sans-serif;
+  --font-display: 'Space Grotesk', system-ui, sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, monospace;
+
+  /* Overriding default slots to map directly to Immersive UI specification */
+  --color-slate-950: #05070a;
+  --color-slate-900: #0d1117;
+  --color-slate-850: #0a0f18;
+  --color-slate-800: rgba(255, 255, 255, 0.06);
+  --color-slate-850-border: rgba(255, 255, 255, 0.08);
+}
+
+/* Custom Webkit scrollbar for beautiful dark themed slots */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: #0b0f19;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #1e293b;
+  border-radius: 9999px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #334155;
+}
+
+@keyframes shimmer {
+  100% {
+    transform: translateX(100%);
+  }
+}
+
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: .75;
+    transform: scale(0.97);
+  }
+}
+
+/* Neon Glow Animations */
+.neon-glow-cyan {
+  box-shadow: 0 0 15px rgba(6, 182, 212, 0.25);
+  text-shadow: 0 0 10px rgba(6, 182, 212, 0.4);
+}
+
+.neon-glow-magenta {
+  box-shadow: 0 0 15px rgba(217, 70, 239, 0.25);
+  text-shadow: 0 0 10px rgba(217, 70, 239, 0.4);
+}
+
+.neon-border-pulse {
+  animation: neonPulse 2s infinite ease-in-out;
+}
+
+@keyframes neonPulse {
+  0%, 100% {
+    border-color: rgba(6, 182, 212, 0.4);
+    box-shadow: 0 0 10px rgba(6, 182, 212, 0.1);
+  }
+  50% {
+    border-color: rgba(6, 182, 212, 0.8);
+    box-shadow: 0 0 20px rgba(6, 182, 212, 0.35);
+  }
+}
