@@ -1,5 +1,238 @@
 [
   {
+    "id": "hist_1782195368162",
+    "timestamp": "2026-06-23T06:16:08.162Z",
+    "formattedDate": "Tue, Jun 23, 2026, 02:16 PM",
+    "script": {
+      "title": "The Fractured Horizon",
+      "author": "Cyrus Vance / SFX Sessions",
+      "lines": [
+        {
+          "id": 1,
+          "character": "NARRATOR",
+          "text": "Deep within the high-security quantum chamber of Sector 9, the absolute limits of physical reality are being put to the test. Welcome... to the Fractured Horizon. [BGM: Ambient Cosmic Drone]"
+        },
+        {
+          "id": 2,
+          "character": "SYSTEM",
+          "text": "[SFX: Robotic Hum] CORE STATUS: UNSTABLE. CHRONAL ANOMALY DETECTED IN QUADRANT 4."
+        },
+        {
+          "id": 3,
+          "character": "DR. JADE KHAN",
+          "text": "Zephyr! Read me the thermal output of the main chamber! If we exceed six teravolts, the micro-singularity will tear through the containment barriers!"
+        },
+        {
+          "id": 4,
+          "character": "ASSISTANT ZEPHYR",
+          "text": "I'm looking at the logs, Doctor! The temperature is rising exponentially! We can't vent the coolant because the manual sequence has locked us out!"
+        },
+        {
+          "id": 5,
+          "character": "SYSTEM",
+          "text": "[SFX: AI Alarm] WARNING: THERMAL DISCREPANCY. CONTAINMENT SHELL DEGRADATION IN FIVE... FOUR..."
+        },
+        {
+          "id": 6,
+          "character": "DR. JADE KHAN",
+          "text": "We need an active bypass! Hit the secondary breaker! Now!"
+        },
+        {
+          "id": 7,
+          "character": "ASSISTANT ZEPHYR",
+          "text": "Breaker hit! (grunt) It's sparking! Dr. Khan, watch out!"
+        },
+        {
+          "id": 8,
+          "character": "SYSTEM",
+          "text": "[SFX: Static Spark] OVERLOAD IN COIL 1. EMERGENCY ISOLATION ACTIVE."
+        },
+        {
+          "id": 9,
+          "character": "DR. JADE KHAN",
+          "text": "That barely bought us thirty seconds. Look at the visual monitors... the air itself is beginning to fracture into glowing neon fractals."
+        },
+        {
+          "id": 10,
+          "character": "ASSISTANT ZEPHYR",
+          "text": "Doctor... do you hear that sound? It isn't coming from the computer speakers. It's coming from inside the chamber!"
+        },
+        {
+          "id": 11,
+          "character": "DR. JADE KHAN",
+          "text": "It's a sub-harmonic drop! Cover your ears, Zephyr! The resonance is shifting!"
+        },
+        {
+          "id": 12,
+          "character": "SYSTEM",
+          "text": "[SFX: Sub Drop] WARNING: PIEZOELECTRIC COLLAPSE IMMINENT."
+        },
+        {
+          "id": 13,
+          "character": "ASSISTANT ZEPHYR",
+          "text": "The glass! The safety shield is cracking!"
+        },
+        {
+          "id": 14,
+          "character": "SYSTEM",
+          "text": "[SFX: Digital Shatter] CONTAINMENT BREACH. LABORATORY AIRLOCK SEAL DAMAGED."
+        },
+        {
+          "id": 15,
+          "character": "DR. JADE KHAN",
+          "text": "It's too late! The singularity is shearing. The portal... has found us. Zephyr, hold onto the console!"
+        },
+        {
+          "id": 16,
+          "character": "SYSTEM",
+          "text": "[SFX: Portal Whoosh] CORRIDOR DEPRESSURIZATION COMPLETE. SINGULARITY DRIFT: CONVERGING."
+        },
+        {
+          "id": 17,
+          "character": "ASSISTANT ZEPHYR",
+          "text": "(struggling, yelled over wind) Dr. Khan! The vortex is pulling the data cables! If the power lines snap, we're stranded in wait... what is that in the center of the rift?!"
+        },
+        {
+          "id": 18,
+          "character": "DR. JADE KHAN",
+          "text": "It looks like... an alternative timeline. Another Sector 9. But they... they have their own containment team! Look at the monitors! They are looking back at us!"
+        },
+        {
+          "id": 19,
+          "character": "SYSTEM",
+          "text": "[SFX: Retro Laser] SCANNING INTRUDERS. INTER-DIMENSIONAL CORRELATION PROVEN."
+        },
+        {
+          "id": 20,
+          "character": "NARRATOR",
+          "text": "As the two worlds collide in a kaleidoscope of cyan sparks and temporal lightning, the sound effects team makes their final, fateful choice... and activates the manual reset."
+        },
+        {
+          "id": 21,
+          "character": "SYSTEM",
+          "text": "[SFX: Retro Laser] CRITICAL TERMINATION INITIATED. SESSION LOGGED OUT. [BGM: Stop]"
+        },
+        {
+          "id": 22,
+          "character": "DR. JADE KHAN",
+          "text": "Well... that worked. But now we have to clean up all these pixelated shards. Zephyr, get the broom."
+        }
+      ]
+    },
+    "sounds": [
+      {
+        "id": "snd_hum",
+        "name": "Engine Hum 🛸",
+        "color": "blue",
+        "keyShortcut": "1",
+        "isLooping": true,
+        "volume": 0.5,
+        "isCustom": false,
+        "synthType": "hum",
+        "playCount": 0,
+        "order": 0
+      },
+      {
+        "id": "snd_alarm",
+        "name": "AI Alarm 🚨",
+        "color": "magenta",
+        "keyShortcut": "2",
+        "isLooping": true,
+        "volume": 0.45,
+        "isCustom": false,
+        "synthType": "alarm",
+        "playCount": 0,
+        "order": 1
+      },
+      {
+        "id": "snd_spark",
+        "name": "Static Spark ⚡",
+        "color": "amber",
+        "keyShortcut": "3",
+        "isLooping": false,
+        "volume": 0.7,
+        "isCustom": false,
+        "synthType": "spark",
+        "playCount": 0,
+        "order": 2
+      },
+      {
+        "id": "snd_subdrop",
+        "name": "Sub Drop 🔈",
+        "color": "purple",
+        "keyShortcut": "4",
+        "isLooping": false,
+        "volume": 0.8,
+        "isCustom": false,
+        "synthType": "subdrop",
+        "playCount": 0,
+        "order": 3
+      },
+      {
+        "id": "snd_shatter",
+        "name": "Digital Shatter 💎",
+        "color": "rose",
+        "keyShortcut": "5",
+        "isLooping": false,
+        "volume": 0.75,
+        "isCustom": false,
+        "synthType": "shatter",
+        "playCount": 0,
+        "order": 4
+      },
+      {
+        "id": "snd_portal",
+        "name": "Portal Whoosh 🌀",
+        "color": "cyan",
+        "keyShortcut": "6",
+        "isLooping": false,
+        "volume": 0.7,
+        "isCustom": false,
+        "synthType": "portal",
+        "playCount": 0,
+        "order": 5
+      },
+      {
+        "id": "snd_laser",
+        "name": "Retro Laser ⚡",
+        "color": "green",
+        "keyShortcut": "7",
+        "isLooping": false,
+        "volume": 0.65,
+        "isCustom": false,
+        "synthType": "laser",
+        "playCount": 0,
+        "order": 6
+      },
+      {
+        "id": "snd_buzz",
+        "name": "Buzzer ⚠️",
+        "color": "yellow",
+        "keyShortcut": "8",
+        "isLooping": false,
+        "volume": 0.7,
+        "isCustom": false,
+        "synthType": "buzz",
+        "playCount": 0,
+        "order": 7
+      }
+    ],
+    "bgmTracks": [
+      {
+        "id": "bgm_1782195183096",
+        "name": "INTRO STATION ID FULL 🎵",
+        "isCustom": true,
+        "customFileId": "bgm_1782195183096"
+      },
+      {
+        "id": "bgm_1782195191050",
+        "name": "INTRO STATION ID 🎵",
+        "isCustom": true,
+        "customFileId": "bgm_1782195191050"
+      }
+    ]
+  },
+  {
     "id": "hist_1782194026023",
     "timestamp": "2026-06-23T05:53:46.023Z",
     "formattedHour": "2026-06-23 13:00",
