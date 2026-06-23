@@ -54,35 +54,37 @@ export default defineConfig(() => {
                   }
                 }
 
-                const date = new Date();
-                const formattedHour = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')} ${String(date.getHours()).padStart(2, '0')}:00`;
-                const formattedDate = date.toLocaleString('en-US', {
-                  weekday: 'short',
-                  year: 'numeric',
-                  month: 'short',
-                  day: 'numeric',
-                  hour: '2-digit',
-                  minute: '2-digit',
-                  hour12: true
-                });
+                const lastEntry = historyList[0];
+                const isDuplicate = lastEntry &&
+                  JSON.stringify(lastEntry.script) === JSON.stringify(data.script) &&
+                  JSON.stringify(lastEntry.sounds) === JSON.stringify(data.sounds) &&
+                  JSON.stringify(lastEntry.bgmTracks || []) === JSON.stringify(data.bgmTracks || []);
 
-                const entryIndex = historyList.findIndex((e: any) => e.formattedHour === formattedHour);
-                const newEntry = {
-                  id: `hist_${date.getTime()}`,
-                  timestamp: date.toISOString(),
-                  formattedHour,
-                  formattedDate,
-                  script: data.script,
-                  sounds: data.sounds
-                };
-
-                if (entryIndex > -1) {
-                  historyList[entryIndex] = newEntry;
-                } else {
+                if (!isDuplicate) {
+                  const date = new Date();
+                  const formattedDate = date.toLocaleString('en-US', {
+                    weekday: 'short',
+                    year: 'numeric',
+                    month: 'short',
+                    day: 'numeric',
+                    hour: '2-digit',
+                    minute: '2-digit',
+                    hour12: true
+                  });
+                  const newEntry = {
+                    id: `hist_${date.getTime()}`,
+                    timestamp: date.toISOString(),
+                    formattedDate,
+                    script: data.script,
+                    sounds: data.sounds,
+                    bgmTracks: data.bgmTracks || []
+                  };
                   historyList.unshift(newEntry);
+                  if (historyList.length > 50) {
+                    historyList = historyList.slice(0, 50);
+                  }
+                  fs.writeFileSync(historyPath, JSON.stringify(historyList, null, 2), 'utf-8');
                 }
-
-                fs.writeFileSync(historyPath, JSON.stringify(historyList, null, 2), 'utf-8');
 
                 res.writeHead(200, { 'Content-Type': 'application/json' });
                 res.end(JSON.stringify({ success: true, history: historyList }));

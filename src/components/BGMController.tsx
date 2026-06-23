@@ -2,20 +2,19 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Play, Pause, Square, Volume2, UploadCloud, Music, Trash2, HelpCircle, Activity } from 'lucide-react';
 import { saveAudioFile, getAudioFile, deleteAudioFile } from '../utils/audioDb';
 import { audioEngine } from '../utils/audioEngine';
-
-export interface BGMTrack {
-  id: string;
-  name: string;
-  isCustom: boolean;
-  customFileId?: string;
-}
+import { BGMTrack } from '../types';
 
 const PRESET_TRACKS: BGMTrack[] = [
   { id: 'procedural_cosmic_drone', name: 'Ambient Cosmic Drone 🌌 (Synth)', isCustom: false },
 ];
 
-export default function BGMController() {
-  const [tracks, setTracks] = useState<BGMTrack[]>([]);
+interface BGMControllerProps {
+  customTracks: BGMTrack[];
+  onUpdateTracks: (tracks: BGMTrack[]) => void;
+}
+
+export default function BGMController({ customTracks, onUpdateTracks }: BGMControllerProps) {
+  const allTracks = [...PRESET_TRACKS, ...customTracks];
   const [selectedTrackId, setSelectedTrackId] = useState<string>('procedural_cosmic_drone');
   const [isPlaying, setIsPlaying] = useState<boolean>(false);
   const [isPaused, setIsPaused] = useState<boolean>(false);
@@ -26,21 +25,6 @@ export default function BGMController() {
   
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [isDragging, setIsDragging] = useState<boolean>(false);
-
-  // Sync state with local storage on mount
-  useEffect(() => {
-    const savedTracksText = localStorage.getItem('micchecksfx_bgm_tracks');
-    if (savedTracksText) {
-      try {
-        const parsed = JSON.parse(savedTracksText);
-        setTracks([...PRESET_TRACKS, ...parsed]);
-      } catch (e) {
-        setTracks(PRESET_TRACKS);
-      }
-    } else {
-      setTracks(PRESET_TRACKS);
-    }
-  }, []);
 
   // Sync state loop to update the interface state with audioEngine in real-time
   useEffect(() => {
@@ -73,10 +57,6 @@ export default function BGMController() {
     audioEngine.setBGMLooping(isLooping);
   }, [isLooping]);
 
-  const saveTracksToStorage = (customTracks: BGMTrack[]) => {
-    localStorage.setItem('micchecksfx_bgm_tracks', JSON.stringify(customTracks));
-  };
-
   const handlePlay = async () => {
     audioEngine.init();
 
@@ -92,15 +72,30 @@ export default function BGMController() {
       setIsPlaying(true);
       setIsPaused(false);
     } else {
-      const track = tracks.find(t => t.id === selectedTrackId);
-      if (track && track.customFileId) {
-        const fileBlob = await getAudioFile(track.customFileId);
+      const track = allTracks.find(t => t.id === selectedTrackId);
+      if (track) {
+        let fileBlob = track.customFileId ? await getAudioFile(track.customFileId) : null;
+        if (!fileBlob && track.url) {
+          try {
+            const baseUrl = import.meta.env.BASE_URL;
+            const cleanUrl = track.url.startsWith('/') ? track.url : `${baseUrl}${track.url}`;
+            const res = await fetch(cleanUrl);
+            if (res.ok) {
+              fileBlob = await res.blob();
+              if (track.customFileId) {
+                await saveAudioFile(track.customFileId, fileBlob);
+              }
+            }
+          } catch (e) {
+            console.warn('Failed to fetch BGM track from URL:', e);
+          }
+        }
         if (fileBlob) {
           audioEngine.playBGM(track.id, fileBlob, volume, isLooping);
           setIsPlaying(true);
           setIsPaused(false);
         } else {
-          setUploadError('Could not load uploaded BGM track data from storage.');
+          setUploadError('Could not load uploaded BGM track data from storage or URL.');
         }
       }
     }
@@ -153,10 +148,34 @@ export default function BGMController() {
         customFileId: trackId
       };
 
-      const customTracks = tracks.filter(t => t.isCustom);
+      if (import.meta.env.DEV) {
+        try {
+          const getBase64 = (blob: Blob): Promise<string> => {
+            return new Promise((resolve, reject) => {
+              const reader = new FileReader();
+              reader.onload = () => resolve((reader.result as string).split(',')[1]);
+              reader.onerror = (err) => reject(err);
+              reader.readAsDataURL(blob);
+            });
+          };
+
+          const base64 = await getBase64(file);
+          const res = await fetch('/api/upload-file', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ filename: file.name, base64 })
+          });
+          const result = await res.json();
+          if (result.success) {
+            newTrack.url = result.url;
+          }
+        } catch (uploadErr) {
+          console.warn('Failed to upload BGM file to local server, using local IndexedDB only:', uploadErr);
+        }
+      }
+
       const updatedCustom = [...customTracks, newTrack];
-      setTracks([...PRESET_TRACKS, ...updatedCustom]);
-      saveTracksToStorage(updatedCustom);
+      onUpdateTracks(updatedCustom);
       setSelectedTrackId(trackId);
     } catch (err) {
       setUploadError('Failed storing local music file in system.');
@@ -174,9 +193,8 @@ export default function BGMController() {
     }
 
     await deleteAudioFile(id);
-    const updatedCustom = tracks.filter(t => t.isCustom && t.id !== id);
-    setTracks([...PRESET_TRACKS, ...updatedCustom]);
-    saveTracksToStorage(updatedCustom);
+    const updatedCustom = customTracks.filter(t => t.id !== id);
+    onUpdateTracks(updatedCustom);
 
     if (selectedTrackId === id) {
       setSelectedTrackId('procedural_cosmic_drone');
@@ -223,7 +241,7 @@ export default function BGMController() {
               }}
               className="flex-1 bg-slate-950 text-slate-200 border border-slate-800 rounded px-2.5 py-1.5 text-xs font-mono focus:outline-none focus:ring-1 focus:ring-cyan-500"
             >
-              {tracks.map((track) => (
+              {allTracks.map((track) => (
                 <option key={track.id} value={track.id}>
                   {track.name}
                 </option>
@@ -231,7 +249,7 @@ export default function BGMController() {
             </select>
             
             {/* Delete button if custom track */}
-            {tracks.find(t => t.id === selectedTrackId)?.isCustom && (
+            {allTracks.find(t => t.id === selectedTrackId)?.isCustom && (
               <button
                 type="button"
                 onClick={(e) => handleDeleteTrack(selectedTrackId, e)}

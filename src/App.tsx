@@ -17,7 +17,7 @@ import {
   FileMusic
 } from 'lucide-react';
 
-import { SFXSound, RadioPlayScript, HistoryEntry } from './types';
+import { SFXSound, RadioPlayScript, HistoryEntry, BGMTrack } from './types';
 import { DEFAULT_RADIO_PLAY } from './utils/defaultScript';
 import { getAudioFile, saveAudioFile } from './utils/audioDb';
 import { audioEngine } from './utils/audioEngine';
@@ -158,6 +158,18 @@ export default function App() {
     return DEFAULT_RADIO_PLAY;
   });
 
+  const [bgmTracks, setBgmTracks] = useState<BGMTrack[]>(() => {
+    const saved = localStorage.getItem('micchecksfx_bgm_tracks');
+    if (saved) {
+      try {
+        return JSON.parse(saved);
+      } catch (e) {
+        console.warn('Could not parse saved BGM tracks on init:', e);
+      }
+    }
+    return [];
+  });
+
   const [activeLineId, setActiveLineId] = useState<number>(1);
   const [isPracticeMode, setIsPracticeMode] = useState<boolean>(true); // practice/edit mode vs live performance
   const [nextCueId, setNextCueId] = useState<string | null>(null);
@@ -193,6 +205,10 @@ export default function App() {
   useEffect(() => {
     localStorage.setItem('micchecksfx_script', JSON.stringify(script));
   }, [script]);
+
+  useEffect(() => {
+    localStorage.setItem('micchecksfx_bgm_tracks', JSON.stringify(bgmTracks));
+  }, [bgmTracks]);
 
   // Fast poll interval (100ms) to sync active voice indicators in real-time
   useEffect(() => {
@@ -240,9 +256,19 @@ export default function App() {
     loadSiteData();
   }, [loadSiteData]);
 
-  const handleRestoreVersion = (entry) => {
+  const handleRestoreVersion = (entry: HistoryEntry) => {
     setScript(entry.script);
     setSounds(entry.sounds);
+    if (entry.bgmTracks) {
+      setBgmTracks(entry.bgmTracks);
+    } else {
+      setBgmTracks([]);
+    }
+    if (entry.script.lines && entry.script.lines.length > 0) {
+      setActiveLineId(entry.script.lines[0].id);
+    } else {
+      setActiveLineId(1);
+    }
     setActiveTab('deck');
   };
 
@@ -293,7 +319,7 @@ export default function App() {
     setActiveTab('deck');
   };
 
-  // Auto-sync history in development mode when sounds or script change
+  // Auto-sync history in development mode when sounds, script or bgmTracks change
   useEffect(() => {
     if (!import.meta.env.DEV) return;
     if (sounds.length === 0) return;
@@ -303,7 +329,7 @@ export default function App() {
         const res = await fetch('/api/save-history', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ script, sounds })
+          body: JSON.stringify({ script, sounds, bgmTracks })
         });
         const result = await res.json();
         if (result.success && result.history) {
@@ -315,7 +341,7 @@ export default function App() {
     }, 2000);
 
     return () => clearTimeout(timer);
-  }, [sounds, script]);
+  }, [sounds, script, bgmTracks]);
 
   // Master Sound Play Trigger
   const triggerPlaySound = useCallback(async (sound: SFXSound) => {
@@ -387,24 +413,31 @@ export default function App() {
     }
 
     // Attempt to play user uploaded customized tracks matching the cue by name
-    const savedTracksText = localStorage.getItem('micchecksfx_bgm_tracks');
-    if (savedTracksText) {
-      try {
-        const parsed = JSON.parse(savedTracksText);
-        const match = parsed.find((t: any) => 
-          t.name.toLowerCase().includes(cleanCue) || cleanCue.includes(t.name.toLowerCase())
-        );
-        if (match && match.customFileId) {
-          const fileBlob = await getAudioFile(match.customFileId);
-          if (fileBlob) {
-            audioEngine.playBGM(match.id, fileBlob, 0.4, true);
+    const match = bgmTracks.find((t) => 
+      t.name.toLowerCase().includes(cleanCue) || cleanCue.includes(t.name.toLowerCase())
+    );
+    if (match) {
+      let fileBlob = match.customFileId ? await getAudioFile(match.customFileId) : null;
+      if (!fileBlob && match.url) {
+        try {
+          const baseUrl = import.meta.env.BASE_URL;
+          const cleanUrl = match.url.startsWith('/') ? match.url : `${baseUrl}${match.url}`;
+          const res = await fetch(cleanUrl);
+          if (res.ok) {
+            fileBlob = await res.blob();
+            if (match.customFileId) {
+              await saveAudioFile(match.customFileId, fileBlob);
+            }
           }
+        } catch (e) {
+          console.warn('Failed to fetch BGM from URL for cue:', e);
         }
-      } catch (e) {
-        console.warn('Error fetching BGM tracks for cue matching', e);
+      }
+      if (fileBlob) {
+        audioEngine.playBGM(match.id, fileBlob, 0.4, true);
       }
     }
-  }, []);
+  }, [bgmTracks]);
 
   // Global Key Shortcut Listener (safely skips keypresses inside textareas or input blocks)
   useEffect(() => {
@@ -749,7 +782,10 @@ export default function App() {
 
           {/* Background Ambient Music Controller */}
           <div className="shrink-0">
-            <BGMController />
+            <BGMController
+              customTracks={bgmTracks}
+              onUpdateTracks={setBgmTracks}
+            />
           </div>
 
           {/* Dynamic Playback controls & File configuration panel */}

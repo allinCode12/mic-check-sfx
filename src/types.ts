@@ -23,6 +23,14 @@ export interface ScriptLine {
 
 export type ThemeType = 'cyberpunk' | 'matrix' | 'sunset' | 'vaporwave';
 
+export interface BGMTrack {
+  id: string;
+  name: string;
+  isCustom: boolean;
+  customFileId?: string;
+  url?: string;
+}
+
 export interface RadioPlayScript {
   title: string;
   author: string;
@@ -32,8 +40,9 @@ export interface RadioPlayScript {
 export interface HistoryEntry {
   id: string;
   timestamp: string;
-  formattedHour: string; // YYYY-MM-DD HH:00
+  formattedHour?: string; // YYYY-MM-DD HH:00
   formattedDate: string; // Friendly display label
   script: RadioPlayScript;
   sounds: SFXSound[];
+  bgmTracks?: BGMTrack[];
 }
