@@ -15,7 +15,7 @@ import {
   PlayCircle,
   TrendingUp,
   FileMusic,
-  Github,
+  Cloud,
   CloudUpload
 } from 'lucide-react';
 
@@ -24,9 +24,15 @@ import { DEFAULT_RADIO_PLAY } from './utils/defaultScript';
 import { getAudioFile, saveAudioFile } from './utils/audioDb';
 import { audioEngine } from './utils/audioEngine';
 import { getCustomSoundBlob } from './utils/customSound';
-import { pushFileToGitHub } from './utils/githubSync';
+import {
+  saveSettingsToFirebase,
+  loadSettingsFromFirebase,
+  saveHistoryEntry,
+  loadHistoryFromFirebase,
+  loadUploadsCatalog,
+  getMediaURL
+} from './utils/firebaseSync';
 import HistoryPanel from './components/HistoryPanel';
-import GitHubSettingsModal from './components/GitHubSettingsModal';
 
 import ScriptPanel from './components/ScriptPanel';
 import SFXPad from './components/SFXPad';
@@ -174,12 +180,9 @@ export default function App() {
     return [];
   });
 
-  const [githubToken, setGithubToken] = useState<string>(() => {
-    return localStorage.getItem('micchecksfx_github_token') || '';
-  });
-  const [isGitHubSettingsOpen, setIsGitHubSettingsOpen] = useState(false);
-  const [isSavingToGitHub, setIsSavingToGitHub] = useState(false);
-  const [gitHubSaveResult, setGitHubSaveResult] = useState<'success' | 'failed' | null>(null);
+  const [isSavingToCloud, setIsSavingToCloud] = useState(false);
+  const [cloudSaveResult, setCloudSaveResult] = useState<'success' | 'failed' | null>(null);
+  const [isCloudLoaded, setIsCloudLoaded] = useState(false);
 
   const [activeLineId, setActiveLineId] = useState<number>(1);
   const [isPracticeMode, setIsPracticeMode] = useState<boolean>(true); // practice/edit mode vs live performance
@@ -239,33 +242,50 @@ export default function App() {
     audioEngine.setMasterVolume(isMuted ? 0 : masterVolume);
   }, [masterVolume, isMuted]);
 
-  // Load history and uploads from the site
-  const loadSiteData = useCallback(async () => {
-    const baseUrl = import.meta.env.BASE_URL;
+  // Load settings, history, and uploads from Firebase on mount
+  const loadCloudData = useCallback(async () => {
     try {
-      const historyRes = await fetch(`${baseUrl}history.json?t=${Date.now()}`);
-      if (historyRes.ok) {
-        const data = await historyRes.json();
-        setHistoryList(data);
+      // Load settings from Firebase
+      const cloudSettings = await loadSettingsFromFirebase();
+      if (cloudSettings) {
+        if (cloudSettings.sounds && cloudSettings.sounds.length > 0) {
+          setSounds(cloudSettings.sounds);
+        }
+        if (cloudSettings.script && cloudSettings.script.lines) {
+          setScript(cloudSettings.script);
+        }
+        if (cloudSettings.bgmTracks) {
+          setBgmTracks(cloudSettings.bgmTracks);
+        }
       }
+      setIsCloudLoaded(true);
     } catch (e) {
-      console.log('No history.json found or failed to load:', e);
+      console.warn('Failed to load settings from Firebase:', e);
+      setIsCloudLoaded(true);
     }
 
     try {
-      const uploadsRes = await fetch(`${baseUrl}uploads.json?t=${Date.now()}`);
-      if (uploadsRes.ok) {
-        const data = await uploadsRes.json();
-        setUploadsList(data);
+      const cloudHistory = await loadHistoryFromFirebase();
+      if (cloudHistory.length > 0) {
+        setHistoryList(cloudHistory);
       }
     } catch (e) {
-      console.log('No uploads.json found or failed to load:', e);
+      console.warn('Failed to load history from Firebase:', e);
+    }
+
+    try {
+      const cloudUploads = await loadUploadsCatalog();
+      if (cloudUploads.length > 0) {
+        setUploadsList(cloudUploads);
+      }
+    } catch (e) {
+      console.warn('Failed to load uploads catalog from Firebase:', e);
     }
   }, []);
 
   useEffect(() => {
-    loadSiteData();
-  }, [loadSiteData]);
+    loadCloudData();
+  }, [loadCloudData]);
 
   const handleRestoreVersion = (entry: HistoryEntry) => {
     setScript(entry.script);
@@ -283,21 +303,15 @@ export default function App() {
     setActiveTab('deck');
   };
 
-  const handleSaveToken = (newToken: string) => {
-    setGithubToken(newToken);
-    localStorage.setItem('micchecksfx_github_token', newToken);
-  };
-
-  const handleSaveHistoryToGitHub = async () => {
-    if (!githubToken) {
-      setIsGitHubSettingsOpen(true);
-      return;
-    }
-
-    setIsSavingToGitHub(true);
-    setGitHubSaveResult(null);
+  const handleSaveToCloud = async () => {
+    setIsSavingToCloud(true);
+    setCloudSaveResult(null);
 
     try {
+      // 1. Save current settings to Firebase
+      await saveSettingsToFirebase(sounds, script, bgmTracks);
+
+      // 2. Create a history snapshot
       const date = new Date();
       const formattedDate = date.toLocaleString('en-US', {
         weekday: 'short',
@@ -318,35 +332,22 @@ export default function App() {
         bgmTracks
       };
 
+      await saveHistoryEntry(newEntry);
+
       let updatedHistoryList = [newEntry, ...historyList];
       if (updatedHistoryList.length > 50) {
         updatedHistoryList = updatedHistoryList.slice(0, 50);
       }
+      setHistoryList(updatedHistoryList);
 
-      const jsonString = JSON.stringify(updatedHistoryList, null, 2);
-      const base64 = btoa(unescape(encodeURIComponent(jsonString)));
-
-      const result = await pushFileToGitHub(
-        githubToken,
-        'public/history.json',
-        base64,
-        `sync: save settings version snapshot - ${formattedDate}`
-      );
-
-      if (result.success) {
-        setGitHubSaveResult('success');
-        setHistoryList(updatedHistoryList);
-      } else {
-        setGitHubSaveResult('failed');
-        alert(`GitHub push failed: ${result.error}`);
-      }
+      setCloudSaveResult('success');
     } catch (e: any) {
-      console.error(e);
-      setGitHubSaveResult('failed');
-      alert(`Save failed: ${e.message}`);
+      console.error('Cloud save failed:', e);
+      setCloudSaveResult('failed');
+      alert(`Cloud save failed: ${e.message}`);
     } finally {
-      setIsSavingToGitHub(false);
-      setTimeout(() => setGitHubSaveResult(null), 3000);
+      setIsSavingToCloud(false);
+      setTimeout(() => setCloudSaveResult(null), 3000);
     }
   };
 
@@ -357,8 +358,7 @@ export default function App() {
     JSON.stringify(latestHistoryEntry.bgmTracks || []) !== JSON.stringify(bgmTracks)
   ) : true;
 
-  const handleAddSoundFromFile = async (filename) => {
-    const baseUrl = import.meta.env.BASE_URL;
+  const handleAddSoundFromFile = async (filename: string) => {
     const cleanName = filename.replace(/\.[^/.]+$/, '').replace(/[_-]/g, ' ');
     const soundId = `snd_${Date.now()}`;
     const nextOrder = sounds.length ? Math.max(...sounds.map(s => s.order)) + 1 : 0;
@@ -375,7 +375,7 @@ export default function App() {
       }
     }
 
-    const payload = {
+    const payload: any = {
       id: soundId,
       name: cleanName,
       color: selectedColor,
@@ -384,49 +384,29 @@ export default function App() {
       volume: 0.75,
       isCustom: true,
       customFileId: soundId,
-      url: `uploads/${filename}`,
       playCount: 0,
       order: nextOrder
     };
 
     try {
-      const response = await fetch(`${baseUrl}uploads/${filename}`);
-      if (response.ok) {
-        const blob = await response.blob();
-        await saveAudioFile(soundId, blob);
-        await audioEngine.cacheFile(soundId, blob);
+      // Try to get download URL from Firebase Storage
+      const downloadURL = await getMediaURL(filename);
+      if (downloadURL) {
+        payload.url = downloadURL;
+        const response = await fetch(downloadURL);
+        if (response.ok) {
+          const blob = await response.blob();
+          await saveAudioFile(soundId, blob);
+          await audioEngine.cacheFile(soundId, blob);
+        }
       }
     } catch (e) {
-      console.warn('Failed to pre-cache added sound from URL:', e);
+      console.warn('Failed to pre-cache added sound from Firebase:', e);
     }
 
     setSounds((prev) => [...prev, payload]);
     setActiveTab('deck');
   };
-
-  // Auto-sync history in development mode when sounds, script or bgmTracks change
-  useEffect(() => {
-    if (!import.meta.env.DEV) return;
-    if (sounds.length === 0) return;
-
-    const timer = setTimeout(async () => {
-      try {
-        const res = await fetch('/api/save-history', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ script, sounds, bgmTracks })
-        });
-        const result = await res.json();
-        if (result.success && result.history) {
-          setHistoryList(result.history);
-        }
-      } catch (e) {
-        console.warn('Auto-save history failed:', e);
-      }
-    }, 2000);
-
-    return () => clearTimeout(timer);
-  }, [sounds, script, bgmTracks]);
 
   // Master Sound Play Trigger
   const triggerPlaySound = useCallback(async (sound: SFXSound) => {
@@ -797,40 +777,33 @@ export default function App() {
             </div>
           </div>
 
-          {/* GitHub Sync Controls */}
+          {/* Cloud Sync Controls */}
           <button
             type="button"
-            onClick={() => setIsGitHubSettingsOpen(true)}
-            className={`h-10 w-10 flex items-center justify-center rounded-xl transition-all border shrink-0 cursor-pointer ${
-              githubToken
-                ? 'bg-slate-900 border-slate-800 text-cyan-400 hover:text-cyan-300'
-                : 'bg-slate-900 border-amber-500/30 text-amber-500 hover:text-amber-405 animate-pulse'
+            onClick={handleSaveToCloud}
+            disabled={isSavingToCloud || !hasUnsavedChanges}
+            className={`h-10 px-3.5 font-bold font-mono text-[11px] rounded-xl flex items-center gap-1.5 transition-all uppercase tracking-wider shrink-0 cursor-pointer ${
+              isSavingToCloud
+                ? 'bg-cyan-600 text-black'
+                : cloudSaveResult === 'success'
+                ? 'bg-emerald-500 text-black'
+                : cloudSaveResult === 'failed'
+                ? 'bg-rose-500 text-black'
+                : hasUnsavedChanges
+                ? 'bg-amber-500 text-black hover:bg-amber-400 shadow-[0_0_15px_rgba(245,158,11,0.25)] animate-pulse'
+                : 'bg-slate-900 text-slate-500 border border-slate-850 cursor-default'
             }`}
-            title={githubToken ? "GitHub Sync Connected" : "GitHub Sync Disconnected (Click to Connect)"}
+            title={hasUnsavedChanges ? "Save all settings & history to Firebase Cloud" : "All settings synced to cloud"}
           >
-            <Github size={16} />
+            {isSavingToCloud ? (
+              <span className="w-3.5 h-3.5 border-2 border-black border-t-transparent rounded-full animate-spin shrink-0" />
+            ) : cloudSaveResult === 'success' ? (
+              <Cloud size={13} />
+            ) : (
+              <CloudUpload size={13} />
+            )}
+            {isSavingToCloud ? 'Saving...' : cloudSaveResult === 'success' ? '☁ Saved!' : cloudSaveResult === 'failed' ? 'Failed!' : hasUnsavedChanges ? '☁ Save to Cloud' : '☁ Synced'}
           </button>
-
-          {githubToken && (
-            <button
-              type="button"
-              onClick={handleSaveHistoryToGitHub}
-              disabled={isSavingToGitHub || !hasUnsavedChanges}
-              className={`h-10 px-3.5 font-bold font-mono text-[11px] rounded-xl flex items-center gap-1.5 transition-all uppercase tracking-wider shrink-0 cursor-pointer ${
-                hasUnsavedChanges
-                  ? 'bg-amber-500 text-black hover:bg-amber-400 shadow-[0_0_15px_rgba(245,158,11,0.25)] animate-pulse'
-                  : 'bg-slate-900 text-slate-500 border border-slate-850 cursor-default'
-              }`}
-              title={hasUnsavedChanges ? "Push local modifications to GitHub Repository" : "All modifications synced to GitHub"}
-            >
-              {isSavingToGitHub ? (
-                <span className="w-3.5 h-3.5 border-2 border-black border-t-transparent rounded-full animate-spin shrink-0" />
-              ) : (
-                <CloudUpload size={13} />
-              )}
-              {isSavingToGitHub ? 'Saving...' : hasUnsavedChanges ? 'Save Settings' : 'Synced'}
-            </button>
-          )}
 
           {/* Master Panic & Backup controls */}
           <button
@@ -1035,7 +1008,7 @@ export default function App() {
               {/* Soundboard creation forms, nested neatly in practice mode */}
               {isPracticeMode && (
                 <div className="pt-4 border-t border-slate-850/70">
-                  <SoundCreator onAddSound={handleCreateSound} existingSounds={sounds} githubToken={githubToken} />
+                  <SoundCreator onAddSound={handleCreateSound} existingSounds={sounds} />
                 </div>
               )}
             </div>
@@ -1047,8 +1020,8 @@ export default function App() {
               uploadsList={uploadsList}
               onLoadVersion={handleRestoreVersion}
               onAddSoundFromFile={handleAddSoundFromFile}
-              isDev={import.meta.env.DEV}
-              onRefresh={loadSiteData}
+              isDev={false}
+              onRefresh={loadCloudData}
             />
           </div>
         )}
@@ -1065,12 +1038,7 @@ export default function App() {
         <span>MIC CHECK SESSIONS • 2026</span>
       </footer>
 
-      <GitHubSettingsModal
-        isOpen={isGitHubSettingsOpen}
-        onClose={() => setIsGitHubSettingsOpen(false)}
-        savedToken={githubToken}
-        onSave={handleSaveToken}
-      />
+
     </div>
   );
 }
