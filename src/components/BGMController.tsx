@@ -3,7 +3,7 @@ import { Play, Pause, Square, Volume2, UploadCloud, Music, Trash2, HelpCircle, A
 import { saveAudioFile, getAudioFile, deleteAudioFile } from '../utils/audioDb';
 import { audioEngine } from '../utils/audioEngine';
 import { BGMTrack } from '../types';
-import { uploadMediaToFirebase, registerUploadInCatalog } from '../utils/firebaseSync';
+import { uploadMediaToDatabase, getMediaFromDatabase } from '../utils/firebaseSync';
 
 const PRESET_TRACKS: BGMTrack[] = [
   { id: 'procedural_cosmic_drone', name: 'Ambient Cosmic Drone 🌌 (Synth)', isCustom: false },
@@ -76,19 +76,29 @@ export default function BGMController({ customTracks, onUpdateTracks }: BGMContr
       const track = allTracks.find(t => t.id === selectedTrackId);
       if (track) {
         let fileBlob = track.customFileId ? await getAudioFile(track.customFileId) : null;
+        // If not in local IndexedDB, try fetching from Firebase RTDB
         if (!fileBlob && track.url) {
           try {
-            const baseUrl = import.meta.env.BASE_URL;
-            const cleanUrl = track.url.startsWith('/') ? track.url : `${baseUrl}${track.url}`;
-            const res = await fetch(cleanUrl);
-            if (res.ok) {
-              fileBlob = await res.blob();
+            // Try Firebase RTDB first (base64 stored media)
+            const originalName = track.name.replace(' 🎵', '').replace(/\s/g, '_');
+            const rtdbBlob = await getMediaFromDatabase(originalName);
+            if (rtdbBlob) {
+              fileBlob = rtdbBlob;
               if (track.customFileId) {
                 await saveAudioFile(track.customFileId, fileBlob);
               }
+            } else if (track.url.startsWith('data:')) {
+              // data: URL — fetch directly
+              const res = await fetch(track.url);
+              if (res.ok) {
+                fileBlob = await res.blob();
+                if (track.customFileId) {
+                  await saveAudioFile(track.customFileId, fileBlob);
+                }
+              }
             }
           } catch (e) {
-            console.warn('Failed to fetch BGM track from URL:', e);
+            console.warn('Failed to fetch BGM track from Firebase:', e);
           }
         }
         if (fileBlob) {
@@ -149,13 +159,12 @@ export default function BGMController({ customTracks, onUpdateTracks }: BGMContr
         customFileId: trackId
       };
 
-      // Upload to Firebase Storage and get permanent download URL
+      // Upload to Firebase Realtime Database as base64
       try {
-        const downloadURL = await uploadMediaToFirebase(file.name, file);
-        newTrack.url = downloadURL;
-        await registerUploadInCatalog(file.name);
+        const dataUrl = await uploadMediaToDatabase(file.name, file);
+        newTrack.url = dataUrl;
       } catch (firebaseErr) {
-        console.warn('Failed to upload BGM to Firebase Storage, using local IndexedDB only:', firebaseErr);
+        console.warn('Failed to upload BGM to Firebase RTDB, using local IndexedDB only:', firebaseErr);
       }
 
       const updatedCustom = [...customTracks, newTrack];

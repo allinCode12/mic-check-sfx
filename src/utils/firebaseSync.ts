@@ -1,6 +1,5 @@
-import { ref, set, get, push, query, orderByChild, limitToLast } from 'firebase/database';
-import { ref as storageRef, uploadBytes, getDownloadURL, listAll } from 'firebase/storage';
-import { db, storage } from '../firebase';
+import { ref, set, get } from 'firebase/database';
+import { db } from '../firebase';
 import { SFXSound, RadioPlayScript, BGMTrack, HistoryEntry } from '../types';
 
 // ─── Settings (Realtime Database) ────────────────────────────────────
@@ -64,30 +63,63 @@ export async function loadHistoryFromFirebase(): Promise<HistoryEntry[]> {
   return [];
 }
 
-// ─── Media Uploads (Firebase Storage) ────────────────────────────────
+// ─── Media Uploads (Realtime Database as base64) ─────────────────────
 
 /**
- * Upload an audio file to Firebase Storage and return the download URL.
+ * Upload an audio file to Firebase Realtime Database as a base64 string.
+ * Returns a data URL that can be used to play the audio directly.
  */
-export async function uploadMediaToFirebase(
+export async function uploadMediaToDatabase(
   filename: string,
   fileBlob: Blob
 ): Promise<string> {
-  const fileRef = storageRef(storage, `uploads/${filename}`);
-  await uploadBytes(fileRef, fileBlob);
-  const downloadURL = await getDownloadURL(fileRef);
-  return downloadURL;
+  const base64 = await blobToBase64(fileBlob);
+  const mediaRef = ref(db, `media/${sanitizeKey(filename)}`);
+  await set(mediaRef, {
+    filename,
+    mimeType: fileBlob.type || 'audio/mpeg',
+    base64,
+    uploadedAt: new Date().toISOString(),
+    size: fileBlob.size
+  });
+  // Register in catalog
+  await registerUploadInCatalog(filename);
+  // Return a data URL for immediate playback
+  return `data:${fileBlob.type || 'audio/mpeg'};base64,${base64}`;
 }
 
 /**
- * Get the download URL for a file already in Firebase Storage.
+ * Get an audio file from Firebase Realtime Database. Returns a Blob, or null.
+ */
+export async function getMediaFromDatabase(filename: string): Promise<Blob | null> {
+  try {
+    const mediaRef = ref(db, `media/${sanitizeKey(filename)}`);
+    const snapshot = await get(mediaRef);
+    if (snapshot.exists()) {
+      const data = snapshot.val();
+      return base64ToBlob(data.base64, data.mimeType || 'audio/mpeg');
+    }
+    return null;
+  } catch (e) {
+    console.warn(`Could not get media "${filename}" from database:`, e);
+    return null;
+  }
+}
+
+/**
+ * Get the download URL (data: URL) for a file in Firebase RTDB.
  */
 export async function getMediaURL(filename: string): Promise<string | null> {
   try {
-    const fileRef = storageRef(storage, `uploads/${filename}`);
-    return await getDownloadURL(fileRef);
+    const mediaRef = ref(db, `media/${sanitizeKey(filename)}`);
+    const snapshot = await get(mediaRef);
+    if (snapshot.exists()) {
+      const data = snapshot.val();
+      return `data:${data.mimeType || 'audio/mpeg'};base64,${data.base64}`;
+    }
+    return null;
   } catch (e) {
-    console.warn(`Could not get download URL for ${filename}:`, e);
+    console.warn(`Could not get media URL for "${filename}":`, e);
     return null;
   }
 }
@@ -95,7 +127,7 @@ export async function getMediaURL(filename: string): Promise<string | null> {
 // ─── Uploads Catalog (Realtime Database) ─────────────────────────────
 
 /**
- * Register a filename in the uploads catalog stored in Realtime Database.
+ * Register a filename in the uploads catalog.
  */
 export async function registerUploadInCatalog(filename: string): Promise<void> {
   const catalogRef = ref(db, 'settings/uploads');
@@ -122,4 +154,35 @@ export async function loadUploadsCatalog(): Promise<string[]> {
     return Array.isArray(data.files) ? data.files : [];
   }
   return [];
+}
+
+// ─── Helpers ─────────────────────────────────────────────────────────
+
+/** Convert a Blob to a base64 string (without the data: prefix). */
+function blobToBase64(blob: Blob): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const result = reader.result as string;
+      // Strip "data:<mime>;base64," prefix
+      resolve(result.split(',')[1]);
+    };
+    reader.onerror = reject;
+    reader.readAsDataURL(blob);
+  });
+}
+
+/** Convert a base64 string to a Blob. */
+function base64ToBlob(base64: string, mimeType: string): Blob {
+  const byteChars = atob(base64);
+  const byteNumbers = new Uint8Array(byteChars.length);
+  for (let i = 0; i < byteChars.length; i++) {
+    byteNumbers[i] = byteChars.charCodeAt(i);
+  }
+  return new Blob([byteNumbers], { type: mimeType });
+}
+
+/** Sanitize a filename for use as a Firebase RTDB key (no . # $ [ ] /) */
+function sanitizeKey(filename: string): string {
+  return filename.replace(/[.#$\[\]\/]/g, '_');
 }

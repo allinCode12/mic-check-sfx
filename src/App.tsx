@@ -30,7 +30,7 @@ import {
   saveHistoryEntry,
   loadHistoryFromFirebase,
   loadUploadsCatalog,
-  getMediaURL
+  getMediaFromDatabase
 } from './utils/firebaseSync';
 import HistoryPanel from './components/HistoryPanel';
 
@@ -389,19 +389,15 @@ export default function App() {
     };
 
     try {
-      // Try to get download URL from Firebase Storage
-      const downloadURL = await getMediaURL(filename);
-      if (downloadURL) {
-        payload.url = downloadURL;
-        const response = await fetch(downloadURL);
-        if (response.ok) {
-          const blob = await response.blob();
-          await saveAudioFile(soundId, blob);
-          await audioEngine.cacheFile(soundId, blob);
-        }
+      // Try to get media blob from Firebase RTDB (stored as base64)
+      const blob = await getMediaFromDatabase(filename);
+      if (blob) {
+        await saveAudioFile(soundId, blob);
+        await audioEngine.cacheFile(soundId, blob);
+        payload.url = URL.createObjectURL(blob);
       }
     } catch (e) {
-      console.warn('Failed to pre-cache added sound from Firebase:', e);
+      console.warn('Failed to pre-cache added sound from Firebase RTDB:', e);
     }
 
     setSounds((prev) => [...prev, payload]);

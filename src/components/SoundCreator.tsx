@@ -3,7 +3,7 @@ import { SFXSound } from '../types';
 import { PlusCircle, UploadCloud, Radio, Sparkles, FileAudio, Keyboard, AlertCircle, RefreshCw } from 'lucide-react';
 import { saveAudioFile } from '../utils/audioDb';
 import { audioEngine } from '../utils/audioEngine';
-import { uploadMediaToFirebase, registerUploadInCatalog } from '../utils/firebaseSync';
+import { uploadMediaToDatabase } from '../utils/firebaseSync';
 
 interface SoundCreatorProps {
   onAddSound: (sound: SFXSound) => void;
@@ -136,13 +136,12 @@ export default function SoundCreator({ onAddSound, existingSounds }: SoundCreato
         payload.isCustom = true;
         payload.customFileId = soundId;
 
-        // Upload to Firebase Storage and get permanent download URL
+        // Upload to Firebase Realtime Database as base64
         try {
-          const downloadURL = await uploadMediaToFirebase(fileName, fileBlob);
-          payload.url = downloadURL;
-          await registerUploadInCatalog(fileName);
+          const dataUrl = await uploadMediaToDatabase(fileName, fileBlob);
+          payload.url = dataUrl;
         } catch (firebaseErr) {
-          console.warn('Failed to upload to Firebase Storage, using local IndexedDB only:', firebaseErr);
+          console.warn('Failed to upload to Firebase RTDB, using local IndexedDB only:', firebaseErr);
         }
       } catch (err: any) {
         console.error(err);
