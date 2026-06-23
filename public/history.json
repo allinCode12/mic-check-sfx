@@ -1,7 +1,7 @@
 [
   {
-    "id": "hist_1782195368162",
-    "timestamp": "2026-06-23T06:16:08.162Z",
+    "id": "hist_1782195404986",
+    "timestamp": "2026-06-23T06:16:44.986Z",
     "formattedDate": "Tue, Jun 23, 2026, 02:16 PM",
     "script": {
       "title": "The Fractured Horizon",
@@ -10,12 +10,14 @@
         {
           "id": 1,
           "character": "NARRATOR",
-          "text": "Deep within the high-security quantum chamber of Sector 9, the absolute limits of physical reality are being put to the test. Welcome... to the Fractured Horizon. [BGM: Ambient Cosmic Drone]"
+          "text": "Deep within the high-security quantum chamber of Sector 9, the absolute limits of physical reality are being put to the test. Welcome... to the Fractured Horizon. [BGM: INTRO STATION ID FULL]",
+          "bgmCue": "INTRO STATION ID FULL"
         },
         {
           "id": 2,
           "character": "SYSTEM",
-          "text": "[SFX: Robotic Hum] CORE STATUS: UNSTABLE. CHRONAL ANOMALY DETECTED IN QUADRANT 4."
+          "text": "[SFX: Robotic Hum] CORE STATUS: UNSTABLE. CHRONAL ANOMALY DETECTED IN QUADRANT 4.",
+          "sfxCue": "Robotic Hum"
         },
         {
           "id": 3,
@@ -30,7 +32,8 @@
         {
           "id": 5,
           "character": "SYSTEM",
-          "text": "[SFX: AI Alarm] WARNING: THERMAL DISCREPANCY. CONTAINMENT SHELL DEGRADATION IN FIVE... FOUR..."
+          "text": "[BGM: INTRO STATION ID] WARNING: THERMAL DISCREPANCY. CONTAINMENT SHELL DEGRADATION IN FIVE... FOUR...",
+          "bgmCue": "INTRO STATION ID"
         },
         {
           "id": 6,
@@ -45,7 +48,8 @@
         {
           "id": 8,
           "character": "SYSTEM",
-          "text": "[SFX: Static Spark] OVERLOAD IN COIL 1. EMERGENCY ISOLATION ACTIVE."
+          "text": "[SFX: Static Spark] OVERLOAD IN COIL 1. EMERGENCY ISOLATION ACTIVE.",
+          "sfxCue": "Static Spark"
         },
         {
           "id": 9,
@@ -65,7 +69,8 @@
         {
           "id": 12,
           "character": "SYSTEM",
-          "text": "[SFX: Sub Drop] WARNING: PIEZOELECTRIC COLLAPSE IMMINENT."
+          "text": "[SFX: Sub Drop] WARNING: PIEZOELECTRIC COLLAPSE IMMINENT.",
+          "sfxCue": "Sub Drop"
         },
         {
           "id": 13,
@@ -75,7 +80,8 @@
         {
           "id": 14,
           "character": "SYSTEM",
-          "text": "[SFX: Digital Shatter] CONTAINMENT BREACH. LABORATORY AIRLOCK SEAL DAMAGED."
+          "text": "[SFX: Digital Shatter] CONTAINMENT BREACH. LABORATORY AIRLOCK SEAL DAMAGED.",
+          "sfxCue": "Digital Shatter"
         },
         {
           "id": 15,
@@ -85,7 +91,8 @@
         {
           "id": 16,
           "character": "SYSTEM",
-          "text": "[SFX: Portal Whoosh] CORRIDOR DEPRESSURIZATION COMPLETE. SINGULARITY DRIFT: CONVERGING."
+          "text": "[SFX: Portal Whoosh] CORRIDOR DEPRESSURIZATION COMPLETE. SINGULARITY DRIFT: CONVERGING.",
+          "sfxCue": "Portal Whoosh"
         },
         {
           "id": 17,
@@ -100,7 +107,8 @@
         {
           "id": 19,
           "character": "SYSTEM",
-          "text": "[SFX: Retro Laser] SCANNING INTRUDERS. INTER-DIMENSIONAL CORRELATION PROVEN."
+          "text": "[SFX: Retro Laser] SCANNING INTRUDERS. INTER-DIMENSIONAL CORRELATION PROVEN.",
+          "sfxCue": "Retro Laser"
         },
         {
           "id": 20,
@@ -110,7 +118,9 @@
         {
           "id": 21,
           "character": "SYSTEM",
-          "text": "[SFX: Retro Laser] CRITICAL TERMINATION INITIATED. SESSION LOGGED OUT. [BGM: Stop]"
+          "text": "[SFX: Retro Laser] CRITICAL TERMINATION INITIATED. SESSION LOGGED OUT. [BGM: Stop]",
+          "sfxCue": "Retro Laser",
+          "bgmCue": "Stop"
         },
         {
           "id": 22,
@@ -153,7 +163,7 @@
         "volume": 0.7,
         "isCustom": false,
         "synthType": "spark",
-        "playCount": 0,
+        "playCount": 2,
         "order": 2
       },
       {
@@ -177,7 +187,7 @@
         "volume": 0.75,
         "isCustom": false,
         "synthType": "shatter",
-        "playCount": 0,
+        "playCount": 10,
         "order": 4
       },
       {
@@ -189,7 +199,7 @@
         "volume": 0.7,
         "isCustom": false,
         "synthType": "portal",
-        "playCount": 0,
+        "playCount": 1,
         "order": 5
       },
       {
@@ -219,16 +229,10 @@
     ],
     "bgmTracks": [
       {
-        "id": "bgm_1782195183096",
+        "id": "bgm_1782194529103",
         "name": "INTRO STATION ID FULL 🎵",
         "isCustom": true,
-        "customFileId": "bgm_1782195183096"
-      },
-      {
-        "id": "bgm_1782195191050",
-        "name": "INTRO STATION ID 🎵",
-        "isCustom": true,
-        "customFileId": "bgm_1782195191050"
+        "customFileId": "bgm_1782194529103"
       }
     ]
   },
