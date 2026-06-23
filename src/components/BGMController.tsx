@@ -3,6 +3,7 @@ import { Play, Pause, Square, Volume2, UploadCloud, Music, Trash2, HelpCircle, A
 import { saveAudioFile, getAudioFile, deleteAudioFile } from '../utils/audioDb';
 import { audioEngine } from '../utils/audioEngine';
 import { BGMTrack } from '../types';
+import { pushFileToGitHub, fetchFileFromGitHub } from '../utils/githubSync';
 
 const PRESET_TRACKS: BGMTrack[] = [
   { id: 'procedural_cosmic_drone', name: 'Ambient Cosmic Drone 🌌 (Synth)', isCustom: false },
@@ -11,9 +12,10 @@ const PRESET_TRACKS: BGMTrack[] = [
 interface BGMControllerProps {
   customTracks: BGMTrack[];
   onUpdateTracks: (tracks: BGMTrack[]) => void;
+  githubToken?: string;
 }
 
-export default function BGMController({ customTracks, onUpdateTracks }: BGMControllerProps) {
+export default function BGMController({ customTracks, onUpdateTracks, githubToken }: BGMControllerProps) {
   const allTracks = [...PRESET_TRACKS, ...customTracks];
   const [selectedTrackId, setSelectedTrackId] = useState<string>('procedural_cosmic_drone');
   const [isPlaying, setIsPlaying] = useState<boolean>(false);
@@ -148,18 +150,62 @@ export default function BGMController({ customTracks, onUpdateTracks }: BGMContr
         customFileId: trackId
       };
 
-      if (import.meta.env.DEV) {
-        try {
-          const getBase64 = (blob: Blob): Promise<string> => {
-            return new Promise((resolve, reject) => {
-              const reader = new FileReader();
-              reader.onload = () => resolve((reader.result as string).split(',')[1]);
-              reader.onerror = (err) => reject(err);
-              reader.readAsDataURL(blob);
-            });
-          };
+      const getBase64 = (blob: Blob): Promise<string> => {
+        return new Promise((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = () => resolve((reader.result as string).split(',')[1]);
+          reader.onerror = (err) => reject(err);
+          reader.readAsDataURL(blob);
+        });
+      };
 
-          const base64 = await getBase64(file);
+      const base64 = await getBase64(file);
+
+      if (githubToken) {
+        try {
+          // A. Push the media file to public/uploads/ on GitHub
+          const mediaResult = await pushFileToGitHub(
+            githubToken,
+            `public/uploads/${file.name}`,
+            base64,
+            `sync: upload custom BGM file - ${file.name}`
+          );
+
+          if (mediaResult.success) {
+            newTrack.url = `uploads/${file.name}`;
+
+            // B. Update public/uploads.json in the repository
+            let remoteUploads = [];
+            try {
+              const fetched = await fetchFileFromGitHub(githubToken, 'public/uploads.json');
+              if (Array.isArray(fetched)) {
+                remoteUploads = fetched;
+              }
+            } catch (e) {
+              console.warn('Could not fetch uploads.json from GitHub, using empty fallback:', e);
+            }
+
+            if (!remoteUploads.includes(file.name)) {
+              remoteUploads.push(file.name);
+            }
+
+            const listJson = JSON.stringify(remoteUploads, null, 2);
+            const listBase64 = btoa(unescape(encodeURIComponent(listJson)));
+
+            await pushFileToGitHub(
+              githubToken,
+              'public/uploads.json',
+              listBase64,
+              `sync: register ${file.name} in uploads catalog`
+            );
+          } else {
+            console.warn('Failed uploading BGM file to GitHub:', mediaResult.error);
+          }
+        } catch (gitErr) {
+          console.error('Failed pushing files to GitHub:', gitErr);
+        }
+      } else if (import.meta.env.DEV) {
+        try {
           const res = await fetch('/api/upload-file', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },

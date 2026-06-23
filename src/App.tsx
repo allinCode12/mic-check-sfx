@@ -14,7 +14,9 @@ import {
   PlusCircle,
   PlayCircle,
   TrendingUp,
-  FileMusic
+  FileMusic,
+  Github,
+  CloudUpload
 } from 'lucide-react';
 
 import { SFXSound, RadioPlayScript, HistoryEntry, BGMTrack } from './types';
@@ -22,7 +24,9 @@ import { DEFAULT_RADIO_PLAY } from './utils/defaultScript';
 import { getAudioFile, saveAudioFile } from './utils/audioDb';
 import { audioEngine } from './utils/audioEngine';
 import { getCustomSoundBlob } from './utils/customSound';
+import { pushFileToGitHub } from './utils/githubSync';
 import HistoryPanel from './components/HistoryPanel';
+import GitHubSettingsModal from './components/GitHubSettingsModal';
 
 import ScriptPanel from './components/ScriptPanel';
 import SFXPad from './components/SFXPad';
@@ -170,6 +174,13 @@ export default function App() {
     return [];
   });
 
+  const [githubToken, setGithubToken] = useState<string>(() => {
+    return localStorage.getItem('micchecksfx_github_token') || '';
+  });
+  const [isGitHubSettingsOpen, setIsGitHubSettingsOpen] = useState(false);
+  const [isSavingToGitHub, setIsSavingToGitHub] = useState(false);
+  const [gitHubSaveResult, setGitHubSaveResult] = useState<'success' | 'failed' | null>(null);
+
   const [activeLineId, setActiveLineId] = useState<number>(1);
   const [isPracticeMode, setIsPracticeMode] = useState<boolean>(true); // practice/edit mode vs live performance
   const [nextCueId, setNextCueId] = useState<string | null>(null);
@@ -271,6 +282,80 @@ export default function App() {
     }
     setActiveTab('deck');
   };
+
+  const handleSaveToken = (newToken: string) => {
+    setGithubToken(newToken);
+    localStorage.setItem('micchecksfx_github_token', newToken);
+  };
+
+  const handleSaveHistoryToGitHub = async () => {
+    if (!githubToken) {
+      setIsGitHubSettingsOpen(true);
+      return;
+    }
+
+    setIsSavingToGitHub(true);
+    setGitHubSaveResult(null);
+
+    try {
+      const date = new Date();
+      const formattedDate = date.toLocaleString('en-US', {
+        weekday: 'short',
+        year: 'numeric',
+        month: 'short',
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: true
+      });
+
+      const newEntry: HistoryEntry = {
+        id: `hist_${date.getTime()}`,
+        timestamp: date.toISOString(),
+        formattedDate,
+        script,
+        sounds,
+        bgmTracks
+      };
+
+      let updatedHistoryList = [newEntry, ...historyList];
+      if (updatedHistoryList.length > 50) {
+        updatedHistoryList = updatedHistoryList.slice(0, 50);
+      }
+
+      const jsonString = JSON.stringify(updatedHistoryList, null, 2);
+      const base64 = btoa(unescape(encodeURIComponent(jsonString)));
+
+      const result = await pushFileToGitHub(
+        githubToken,
+        'public/history.json',
+        base64,
+        `sync: save settings version snapshot - ${formattedDate}`
+      );
+
+      if (result.success) {
+        setGitHubSaveResult('success');
+        setHistoryList(updatedHistoryList);
+      } else {
+        setGitHubSaveResult('failed');
+        alert(`GitHub push failed: ${result.error}`);
+      }
+    } catch (e: any) {
+      console.error(e);
+      setGitHubSaveResult('failed');
+      alert(`Save failed: ${e.message}`);
+    } finally {
+      setIsSavingToGitHub(false);
+      setTimeout(() => setGitHubSaveResult(null), 3000);
+    }
+  };
+
+  const latestHistoryEntry = historyList[0];
+  const hasUnsavedChanges = latestHistoryEntry ? (
+    JSON.stringify(latestHistoryEntry.script) !== JSON.stringify(script) ||
+    JSON.stringify(latestHistoryEntry.sounds) !== JSON.stringify(sounds) ||
+    JSON.stringify(latestHistoryEntry.bgmTracks || []) !== JSON.stringify(bgmTracks)
+  ) : true;
 
   const handleAddSoundFromFile = async (filename) => {
     const baseUrl = import.meta.env.BASE_URL;
@@ -712,12 +797,47 @@ export default function App() {
             </div>
           </div>
 
+          {/* GitHub Sync Controls */}
+          <button
+            type="button"
+            onClick={() => setIsGitHubSettingsOpen(true)}
+            className={`h-10 w-10 flex items-center justify-center rounded-xl transition-all border shrink-0 cursor-pointer ${
+              githubToken
+                ? 'bg-slate-900 border-slate-800 text-cyan-400 hover:text-cyan-300'
+                : 'bg-slate-900 border-amber-500/30 text-amber-500 hover:text-amber-405 animate-pulse'
+            }`}
+            title={githubToken ? "GitHub Sync Connected" : "GitHub Sync Disconnected (Click to Connect)"}
+          >
+            <Github size={16} />
+          </button>
+
+          {githubToken && (
+            <button
+              type="button"
+              onClick={handleSaveHistoryToGitHub}
+              disabled={isSavingToGitHub || !hasUnsavedChanges}
+              className={`h-10 px-3.5 font-bold font-mono text-[11px] rounded-xl flex items-center gap-1.5 transition-all uppercase tracking-wider shrink-0 cursor-pointer ${
+                hasUnsavedChanges
+                  ? 'bg-amber-500 text-black hover:bg-amber-400 shadow-[0_0_15px_rgba(245,158,11,0.25)] animate-pulse'
+                  : 'bg-slate-900 text-slate-500 border border-slate-850 cursor-default'
+              }`}
+              title={hasUnsavedChanges ? "Push local modifications to GitHub Repository" : "All modifications synced to GitHub"}
+            >
+              {isSavingToGitHub ? (
+                <span className="w-3.5 h-3.5 border-2 border-black border-t-transparent rounded-full animate-spin shrink-0" />
+              ) : (
+                <CloudUpload size={13} />
+              )}
+              {isSavingToGitHub ? 'Saving...' : hasUnsavedChanges ? 'Save Settings' : 'Synced'}
+            </button>
+          )}
+
           {/* Master Panic & Backup controls */}
           <button
             type="button"
             id="global-stop-panic-btn"
             onClick={triggerStopAll}
-            className="h-10 px-4 bg-rose-600 hover:bg-rose-500 text-black font-extrabold text-xs rounded-xl flex items-center gap-1.5 transition-all shadow-[0_0_15px_rgba(244,63,94,0.3)] active:scale-95 uppercase tracking-widest font-mono shrink-0"
+            className="h-10 px-4 bg-rose-600 hover:bg-rose-500 text-black font-extrabold text-xs rounded-xl flex items-center gap-1.5 transition-all shadow-[0_0_15px_rgba(244,63,94,0.3)] active:scale-95 uppercase tracking-widest font-mono shrink-0 cursor-pointer"
             title="Panic Stop (Escape Key)"
           >
             <Square size={13} fill="currentColor" />
@@ -915,7 +1035,7 @@ export default function App() {
               {/* Soundboard creation forms, nested neatly in practice mode */}
               {isPracticeMode && (
                 <div className="pt-4 border-t border-slate-850/70">
-                  <SoundCreator onAddSound={handleCreateSound} existingSounds={sounds} />
+                  <SoundCreator onAddSound={handleCreateSound} existingSounds={sounds} githubToken={githubToken} />
                 </div>
               )}
             </div>
@@ -944,6 +1064,13 @@ export default function App() {
         </div>
         <span>MIC CHECK SESSIONS • 2026</span>
       </footer>
+
+      <GitHubSettingsModal
+        isOpen={isGitHubSettingsOpen}
+        onClose={() => setIsGitHubSettingsOpen(false)}
+        savedToken={githubToken}
+        onSave={handleSaveToken}
+      />
     </div>
   );
 }

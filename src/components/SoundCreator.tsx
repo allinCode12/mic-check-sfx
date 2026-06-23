@@ -3,10 +3,12 @@ import { SFXSound } from '../types';
 import { PlusCircle, UploadCloud, Radio, Sparkles, FileAudio, Keyboard, AlertCircle, RefreshCw } from 'lucide-react';
 import { saveAudioFile } from '../utils/audioDb';
 import { audioEngine } from '../utils/audioEngine';
+import { pushFileToGitHub, fetchFileFromGitHub } from '../utils/githubSync';
 
 interface SoundCreatorProps {
   onAddSound: (sound: SFXSound) => void;
   existingSounds: SFXSound[];
+  githubToken?: string;
 }
 
 const colorPresets: SFXSound['color'][] = ['cyan', 'magenta', 'green', 'yellow', 'rose', 'amber', 'blue', 'purple'];
@@ -22,7 +24,7 @@ const synthPresets = [
   { type: 'spark', label: 'Static Spark ⚡', desc: 'Rapid electrostatic clicks and discharges' },
 ];
 
-export default function SoundCreator({ onAddSound, existingSounds }: SoundCreatorProps) {
+export default function SoundCreator({ onAddSound, existingSounds, githubToken }: SoundCreatorProps) {
   const [sourceType, setSourceType] = useState<'synth' | 'upload'>('synth');
   const [soundName, setSoundName] = useState<string>('');
   
@@ -135,19 +137,62 @@ export default function SoundCreator({ onAddSound, existingSounds }: SoundCreato
         payload.isCustom = true;
         payload.customFileId = soundId;
 
-        // If in development mode, upload the file to the local Vite dev server
-        if (import.meta.env.DEV) {
-          try {
-            const getBase64 = (blob: Blob): Promise<string> => {
-              return new Promise((resolve, reject) => {
-                const reader = new FileReader();
-                reader.onload = () => resolve((reader.result as string).split(',')[1]);
-                reader.onerror = (err) => reject(err);
-                reader.readAsDataURL(blob);
-              });
-            };
+        const getBase64 = (blob: Blob): Promise<string> => {
+          return new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = () => resolve((reader.result as string).split(',')[1]);
+            reader.onerror = (err) => reject(err);
+            reader.readAsDataURL(blob);
+          });
+        };
 
-            const base64 = await getBase64(fileBlob);
+        const base64 = await getBase64(fileBlob);
+
+        if (githubToken) {
+          try {
+            // A. Push the media file to public/uploads/ on GitHub
+            const mediaResult = await pushFileToGitHub(
+              githubToken,
+              `public/uploads/${fileName}`,
+              base64,
+              `sync: upload custom audio file - ${fileName}`
+            );
+
+            if (mediaResult.success) {
+              payload.url = `uploads/${fileName}`;
+
+              // B. Update public/uploads.json in the repository
+              let remoteUploads = [];
+              try {
+                const fetched = await fetchFileFromGitHub(githubToken, 'public/uploads.json');
+                if (Array.isArray(fetched)) {
+                  remoteUploads = fetched;
+                }
+              } catch (e) {
+                console.warn('Could not fetch uploads.json from GitHub, using empty fallback:', e);
+              }
+
+              if (!remoteUploads.includes(fileName)) {
+                remoteUploads.push(fileName);
+              }
+
+              const listJson = JSON.stringify(remoteUploads, null, 2);
+              const listBase64 = btoa(unescape(encodeURIComponent(listJson)));
+
+              await pushFileToGitHub(
+                githubToken,
+                'public/uploads.json',
+                listBase64,
+                `sync: register ${fileName} in uploads catalog`
+              );
+            } else {
+              console.warn('Failed uploading media file to GitHub:', mediaResult.error);
+            }
+          } catch (gitErr) {
+            console.error('Failed pushing files to GitHub:', gitErr);
+          }
+        } else if (import.meta.env.DEV) {
+          try {
             const res = await fetch('/api/upload-file', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
