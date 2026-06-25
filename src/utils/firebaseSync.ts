@@ -2,6 +2,30 @@ import { ref, set, get } from 'firebase/database';
 import { db } from '../firebase';
 import { SFXSound, RadioPlayScript, BGMTrack, HistoryEntry } from '../types';
 
+// ─── Helpers: Firebase-safe serialization ────────────────────────────
+
+/**
+ * Recursively strip `undefined` values from an object/array before
+ * writing to Firebase Realtime Database (which rejects `undefined`).
+ * - Object keys whose value is `undefined` are omitted.
+ * - Array entries that are `undefined` are replaced with `null`.
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function stripUndefined(value: any): any {
+  if (value === undefined) return null;
+  if (value === null || typeof value !== 'object') return value;
+  if (Array.isArray(value)) {
+    return value.map((item) => stripUndefined(item));
+  }
+  const clean: Record<string, unknown> = {};
+  for (const key of Object.keys(value)) {
+    if (value[key] !== undefined) {
+      clean[key] = stripUndefined(value[key]);
+    }
+  }
+  return clean;
+}
+
 // ─── Settings (Realtime Database) ────────────────────────────────────
 
 /**
@@ -13,7 +37,7 @@ export async function saveSettingsToFirebase(
   bgmTracks: BGMTrack[]
 ): Promise<void> {
   const settingsRef = ref(db, 'settings/current');
-  await set(settingsRef, { sounds, script, bgmTracks });
+  await set(settingsRef, stripUndefined({ sounds, script, bgmTracks }));
 }
 
 /**
@@ -44,7 +68,7 @@ export async function loadSettingsFromFirebase(): Promise<{
  */
 export async function saveHistoryEntry(entry: HistoryEntry): Promise<void> {
   const historyRef = ref(db, `history/${entry.id}`);
-  await set(historyRef, entry);
+  await set(historyRef, stripUndefined(entry));
 }
 
 /**
