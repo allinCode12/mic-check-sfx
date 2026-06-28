@@ -150,6 +150,7 @@ export default function BGMController({ customTracks, onUpdateTracks }: BGMContr
 
     try {
       const trackId = `bgm_${Date.now()}`;
+      // Save locally first for instant availability
       await saveAudioFile(trackId, file);
 
       const newTrack: BGMTrack = {
@@ -159,20 +160,33 @@ export default function BGMController({ customTracks, onUpdateTracks }: BGMContr
         customFileId: trackId
       };
 
-      // Upload to Firebase Realtime Database as base64
-      try {
-        const dataUrl = await uploadMediaToDatabase(file.name, file);
-        newTrack.url = dataUrl;
-      } catch (firebaseErr) {
-        console.warn('Failed to upload BGM to Firebase RTDB, using local IndexedDB only:', firebaseErr);
-      }
-
+      // Add to UI immediately so the user doesn't wait
       const updatedCustom = [...customTracks, newTrack];
       onUpdateTracks(updatedCustom);
       setSelectedTrackId(trackId);
+      setIsUploading(false); // Stop loader immediately since local save succeeded
+
+      // Now attempt Firebase upload in background if it's within a safe size (e.g. 8MB)
+      if (file.size > 8 * 1024 * 1024) {
+        console.warn('BGM file is too large for database sync (>8MB). Stored locally only.');
+        setUploadError('BGM is too large for cloud sync (>8MB). Saved locally on this device.');
+      } else {
+        // Perform non-blocking cloud upload
+        uploadMediaToDatabase(file.name, file)
+          .then((dataUrl) => {
+            // Update URL in track list if successful
+            newTrack.url = dataUrl;
+            onUpdateTracks([...customTracks, newTrack]);
+            setUploadError('✅ Cloud sync complete! Available on all devices.');
+            setTimeout(() => setUploadError(''), 4000);
+          })
+          .catch((firebaseErr) => {
+            console.warn('Failed to upload BGM to Firebase RTDB:', firebaseErr);
+            setUploadError('⚠️ Local-only: Could not upload to cloud (saved on this device).');
+          });
+      }
     } catch (err) {
       setUploadError('Failed storing local music file in system.');
-    } finally {
       setIsUploading(false);
     }
   };
