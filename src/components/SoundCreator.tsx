@@ -1,13 +1,19 @@
 import React, { useState, useRef } from 'react';
 import { SFXSound } from '../types';
-import { PlusCircle, UploadCloud, Radio, Sparkles, FileAudio, Keyboard, AlertCircle, RefreshCw } from 'lucide-react';
+import { PlusCircle, UploadCloud, Radio, Sparkles, FileAudio, Keyboard, AlertCircle, RefreshCw, FolderOpen, FolderSync, Unlink, Music, Search } from 'lucide-react';
 import { saveAudioFile } from '../utils/audioDb';
 import { audioEngine } from '../utils/audioEngine';
 import { uploadMediaToDatabase } from '../utils/firebaseSync';
+import { LocalAudioFile, isFileSystemAccessSupported, getFileBlob } from '../utils/localFolder';
 
 interface SoundCreatorProps {
   onAddSound: (sound: SFXSound) => void;
   existingSounds: SFXSound[];
+  folderHandle: FileSystemDirectoryHandle | null;
+  folderName: string | null;
+  folderFiles: LocalAudioFile[];
+  onLinkFolder: () => Promise<void>;
+  onUnlinkFolder: () => Promise<void>;
 }
 
 const colorPresets: SFXSound['color'][] = ['cyan', 'magenta', 'green', 'yellow', 'rose', 'amber', 'blue', 'purple'];
@@ -23,8 +29,16 @@ const synthPresets = [
   { type: 'spark', label: 'Static Spark ⚡', desc: 'Rapid electrostatic clicks and discharges' },
 ];
 
-export default function SoundCreator({ onAddSound, existingSounds }: SoundCreatorProps) {
-  const [sourceType, setSourceType] = useState<'synth' | 'upload'>('synth');
+export default function SoundCreator({
+  onAddSound,
+  existingSounds,
+  folderHandle,
+  folderName,
+  folderFiles,
+  onLinkFolder,
+  onUnlinkFolder,
+}: SoundCreatorProps) {
+  const [sourceType, setSourceType] = useState<'synth' | 'upload' | 'folder'>('synth');
   const [soundName, setSoundName] = useState<string>('');
   
   // Synth states
@@ -35,6 +49,10 @@ export default function SoundCreator({ onAddSound, existingSounds }: SoundCreato
   const [fileName, setFileName] = useState<string>('');
   const [isUploading, setIsUploading] = useState<boolean>(false);
   const [uploadError, setUploadError] = useState<string>('');
+
+  // Local folder browser states
+  const [folderSearch, setFolderSearch] = useState<string>('');
+  const [selectedLocalFile, setSelectedLocalFile] = useState<LocalAudioFile | null>(null);
 
   // Design config states
   const [selectedColor, setSelectedColor] = useState<SFXSound['color']>('cyan');
@@ -97,10 +115,23 @@ export default function SoundCreator({ onAddSound, existingSounds }: SoundCreato
     setIsUploading(false);
   };
 
+  // Filter folder files by search term
+  const filteredFolderFiles = folderFiles.filter((f) => {
+    if (!folderSearch.trim()) return true;
+    const q = folderSearch.toLowerCase();
+    return f.name.toLowerCase().includes(q) || f.relativePath.toLowerCase().includes(q);
+  });
+
   const handleCreateSound = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    const finalName = soundName.trim() || (sourceType === 'synth' ? synthPresets.find(p => p.type === synthType)?.label || 'Sci-Fi Sound' : fileName || 'Uploaded Audio');
+    const finalName = soundName.trim() || (
+      sourceType === 'synth'
+        ? synthPresets.find(p => p.type === synthType)?.label || 'Sci-Fi Sound'
+        : sourceType === 'folder' && selectedLocalFile
+        ? selectedLocalFile.name.replace(/\.[^/.]+$/, '').replace(/[_-]/g, ' ')
+        : fileName || 'Uploaded Audio'
+    );
     const soundId = `snd_${Date.now()}`;
     const nextOrder = existingSounds.length ? Math.max(...existingSounds.map(s => s.order)) + 1 : 0;
 
@@ -119,7 +150,27 @@ export default function SoundCreator({ onAddSound, existingSounds }: SoundCreato
     if (sourceType === 'synth') {
       payload.isCustom = false;
       payload.synthType = synthType;
+    } else if (sourceType === 'folder' && selectedLocalFile) {
+      // Local folder source — read file and cache it
+      try {
+        setIsUploading(true);
+        const file = await getFileBlob(selectedLocalFile.handle);
+
+        // Cache in IndexedDB for instant playback
+        await saveAudioFile(soundId, file);
+        await audioEngine.cacheFile(soundId, file);
+
+        payload.isCustom = true;
+        payload.customFileId = soundId;
+        payload.localPath = selectedLocalFile.relativePath;
+      } catch (err: any) {
+        console.error(err);
+        setUploadError('Failed to read local file.');
+        setIsUploading(false);
+        return;
+      }
     } else {
+      // Traditional file upload
       if (!fileBlob) {
         setUploadError('Please select or drag an audio file first.');
         return;
@@ -157,10 +208,14 @@ export default function SoundCreator({ onAddSound, existingSounds }: SoundCreato
     setSoundName('');
     setFileBlob(null);
     setFileName('');
+    setSelectedLocalFile(null);
+    setFolderSearch('');
     setIsUploading(false);
     setSelectedColor(colorPresets[existingSounds.length % colorPresets.length]);
     setSelectedKey(getNextAvailableShortcut());
   };
+
+  const fsSupported = isFileSystemAccessSupported();
 
   return (
     <div id="sound-creator-panel" className="bg-slate-900 border border-slate-800 rounded-xl p-5 shadow-lg">
@@ -170,12 +225,13 @@ export default function SoundCreator({ onAddSound, existingSounds }: SoundCreato
       </div>
 
       {/* Mode Switches */}
-      <div className="grid grid-cols-2 gap-2 mb-4 bg-slate-950 p-1 rounded-lg">
+      <div className={`grid gap-2 mb-4 bg-slate-950 p-1 rounded-lg ${fsSupported ? 'grid-cols-3' : 'grid-cols-2'}`}>
         <button
           type="button"
           onClick={() => {
             setSourceType('synth');
             setSoundName('');
+            setSelectedLocalFile(null);
           }}
           className={`py-1.5 text-xs font-mono font-bold uppercase rounded-md transition-all flex items-center justify-center gap-1.5 ${
             sourceType === 'synth'
@@ -184,13 +240,14 @@ export default function SoundCreator({ onAddSound, existingSounds }: SoundCreato
           }`}
         >
           <Radio size={13} />
-          Procedural Synth
+          Synth
         </button>
         <button
           type="button"
           onClick={() => {
             setSourceType('upload');
             setSoundName('');
+            setSelectedLocalFile(null);
           }}
           className={`py-1.5 text-xs font-mono font-bold uppercase rounded-md transition-all flex items-center justify-center gap-1.5 ${
             sourceType === 'upload'
@@ -199,8 +256,26 @@ export default function SoundCreator({ onAddSound, existingSounds }: SoundCreato
           }`}
         >
           <UploadCloud size={13} />
-          Upload Sound File
+          Upload File
         </button>
+        {fsSupported && (
+          <button
+            type="button"
+            onClick={() => {
+              setSourceType('folder');
+              setSoundName('');
+              setFileBlob(null);
+            }}
+            className={`py-1.5 text-xs font-mono font-bold uppercase rounded-md transition-all flex items-center justify-center gap-1.5 ${
+              sourceType === 'folder'
+                ? 'bg-slate-800 text-emerald-400 font-bold border border-emerald-500/15'
+                : 'text-slate-500 hover:text-slate-350 bg-transparent'
+            }`}
+          >
+            <FolderOpen size={13} />
+            Local Folder
+          </button>
+        )}
       </div>
 
       <form onSubmit={handleCreateSound} className="space-y-4">
@@ -239,6 +314,130 @@ export default function SoundCreator({ onAddSound, existingSounds }: SoundCreato
                 </button>
               ))}
             </div>
+          </div>
+        ) : sourceType === 'folder' ? (
+          /* Local Folder Browser */
+          <div>
+            {/* Folder Link Controls */}
+            <div className="flex items-center justify-between gap-2 mb-3">
+              <label className="block text-[11px] font-mono text-slate-400 uppercase">
+                Local Audio Folder
+              </label>
+              {folderHandle ? (
+                <div className="flex items-center gap-2">
+                  <span className="text-[10px] font-mono text-emerald-400 bg-emerald-950/30 border border-emerald-500/20 px-2 py-0.5 rounded flex items-center gap-1">
+                    <FolderSync size={10} />
+                    {folderName}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={onLinkFolder}
+                    className="text-[10px] font-mono text-cyan-400 hover:text-cyan-300 px-1.5 py-0.5 rounded hover:bg-slate-800 transition"
+                    title="Change linked folder"
+                  >
+                    Change
+                  </button>
+                  <button
+                    type="button"
+                    onClick={onUnlinkFolder}
+                    className="text-[10px] font-mono text-rose-400 hover:text-rose-300 px-1.5 py-0.5 rounded hover:bg-slate-800 transition flex items-center gap-1"
+                    title="Unlink folder"
+                  >
+                    <Unlink size={9} /> Unlink
+                  </button>
+                </div>
+              ) : (
+                <button
+                  type="button"
+                  onClick={onLinkFolder}
+                  className="text-[11px] font-mono font-bold text-emerald-400 hover:text-emerald-300 bg-emerald-950/30 hover:bg-emerald-950/50 border border-emerald-500/20 px-3 py-1 rounded-lg transition flex items-center gap-1.5"
+                >
+                  <FolderOpen size={12} /> Link Folder
+                </button>
+              )}
+            </div>
+
+            {folderHandle && folderFiles.length > 0 ? (
+              <>
+                {/* Search filter */}
+                <div className="relative mb-2">
+                  <Search size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-500" />
+                  <input
+                    type="text"
+                    value={folderSearch}
+                    onChange={(e) => setFolderSearch(e.target.value)}
+                    placeholder={`Search ${folderFiles.length} audio files...`}
+                    className="w-full bg-slate-950 border border-slate-800 text-white text-xs pl-7 pr-3 py-1.5 rounded-lg focus:outline-none focus:ring-1 focus:ring-emerald-500 font-mono"
+                  />
+                </div>
+
+                {/* Scrollable file list */}
+                <div className="max-h-[200px] overflow-y-auto space-y-1 pr-1 scrollbar-thin scrollbar-thumb-slate-800">
+                  {filteredFolderFiles.map((file) => {
+                    const isSelected = selectedLocalFile?.relativePath === file.relativePath;
+                    const alreadyAdded = existingSounds.some((s) => s.localPath === file.relativePath);
+                    return (
+                      <button
+                        type="button"
+                        key={file.relativePath}
+                        onClick={() => {
+                          if (!alreadyAdded) {
+                            setSelectedLocalFile(file);
+                            const cleanName = file.name.replace(/\.[^/.]+$/, '').replace(/[_-]/g, ' ');
+                            setSoundName(cleanName);
+                          }
+                        }}
+                        disabled={alreadyAdded}
+                        className={`w-full text-left px-3 py-2 rounded-lg border text-xs flex items-center gap-2 transition ${
+                          alreadyAdded
+                            ? 'bg-slate-950/50 border-slate-900 text-slate-600 cursor-not-allowed'
+                            : isSelected
+                            ? 'bg-emerald-950/40 border-emerald-500/60 text-white shadow-[0_0_8px_rgba(16,185,129,0.1)]'
+                            : 'bg-slate-950 border-slate-850 text-slate-400 hover:border-slate-700 hover:text-slate-300'
+                        }`}
+                      >
+                        <Music size={12} className={isSelected ? 'text-emerald-400' : 'text-slate-600'} />
+                        <div className="flex-1 min-w-0">
+                          <div className="font-semibold truncate">{file.name}</div>
+                          {file.relativePath !== file.name && (
+                            <div className="text-[9px] text-slate-500 font-mono truncate">{file.relativePath}</div>
+                          )}
+                        </div>
+                        {alreadyAdded && (
+                          <span className="text-[9px] font-mono text-slate-600 bg-slate-900 px-1.5 py-0.5 rounded shrink-0">
+                            ADDED
+                          </span>
+                        )}
+                      </button>
+                    );
+                  })}
+                  {filteredFolderFiles.length === 0 && (
+                    <div className="text-center text-xs text-slate-500 py-4 font-mono">
+                      No audio files matching "{folderSearch}"
+                    </div>
+                  )}
+                </div>
+              </>
+            ) : folderHandle ? (
+              <div className="text-center py-6 text-xs text-slate-500 font-mono border border-dashed border-slate-800 rounded-lg">
+                No audio files found in this folder.
+              </div>
+            ) : (
+              <div
+                onClick={onLinkFolder}
+                className="border-2 border-dashed border-slate-800 bg-slate-950 hover:bg-slate-950/80 hover:border-slate-700 rounded-lg p-5 text-center cursor-pointer transition-all"
+              >
+                <div className="flex flex-col items-center gap-1.5">
+                  <FolderOpen size={28} className="text-slate-500" />
+                  <span className="text-xs text-slate-300 mt-1">
+                    Click to <span className="text-emerald-400 font-semibold underline">link a local folder</span>
+                  </span>
+                  <span className="text-[10px] font-mono text-slate-500">
+                    Supports MP3, WAV, OGG, M4A, FLAC, AAC
+                  </span>
+                </div>
+              </div>
+            )}
           </div>
         ) : (
           /* File Upload Group */
@@ -308,7 +507,7 @@ export default function SoundCreator({ onAddSound, existingSounds }: SoundCreato
             value={soundName}
             onChange={(e) => setSoundName(e.target.value)}
             className="w-full bg-slate-950 border border-slate-800 text-white text-xs px-3 py-2 rounded-lg focus:outline-none focus:ring-1 focus:ring-cyan-500"
-            placeholder={sourceType === 'synth' ? 'Custom Sound Label' : 'e.g. Explosion'}
+            placeholder={sourceType === 'synth' ? 'Custom Sound Label' : sourceType === 'folder' ? 'e.g. Rain Ambience' : 'e.g. Explosion'}
           />
         </div>
 
@@ -395,7 +594,7 @@ export default function SoundCreator({ onAddSound, existingSounds }: SoundCreato
         {/* Launch Trigger */}
         <button
           type="submit"
-          disabled={isUploading}
+          disabled={isUploading || (sourceType === 'folder' && !selectedLocalFile)}
           className="w-full py-2 bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-black font-bold text-xs rounded-lg uppercase tracking-widest transition flex items-center justify-center gap-2 shadow-[0_0_20px_rgba(6,182,212,0.25)] active:scale-95 disabled:opacity-40"
         >
           {isUploading ? (
@@ -414,3 +613,4 @@ export default function SoundCreator({ onAddSound, existingSounds }: SoundCreato
     </div>
   );
 }
+

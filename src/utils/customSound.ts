@@ -1,9 +1,38 @@
 import { SFXSound } from '../types';
 import { getAudioFile, saveAudioFile } from './audioDb';
 import { getMediaFromDatabase } from './firebaseSync';
+import { resolveFileFromFolder } from './localFolder';
 
-export const getCustomSoundBlob = async (sound: SFXSound): Promise<Blob | null> => {
-  // 1. Try local IndexedDB first (fastest)
+/**
+ * Resolve the audio blob for a custom (non-synth) sound.
+ *
+ * Resolution order:
+ *   0. Local folder (if `localPath` is set and a directory handle is provided)
+ *   1. IndexedDB (fastest local cache)
+ *   2. data: URL from Firebase settings
+ *   3. Firebase RTDB media store (cross-device fallback)
+ */
+export const getCustomSoundBlob = async (
+  sound: SFXSound,
+  folderHandle?: FileSystemDirectoryHandle | null
+): Promise<Blob | null> => {
+  // 0. Try local folder first (zero-copy, fastest for local files)
+  if (sound.localPath && folderHandle) {
+    try {
+      const file = await resolveFileFromFolder(folderHandle, sound.localPath);
+      if (file) {
+        // Also cache into IndexedDB for offline resilience
+        if (sound.customFileId) {
+          saveAudioFile(sound.customFileId, file).catch(() => {});
+        }
+        return file;
+      }
+    } catch (e) {
+      console.warn(`Local folder resolve failed for "${sound.localPath}":`, e);
+    }
+  }
+
+  // 1. Try local IndexedDB (fastest cached source)
   if (sound.customFileId) {
     const localBlob = await getAudioFile(sound.customFileId);
     if (localBlob) return localBlob;
@@ -46,3 +75,4 @@ export const getCustomSoundBlob = async (sound: SFXSound): Promise<Blob | null> 
 
   return null;
 };
+

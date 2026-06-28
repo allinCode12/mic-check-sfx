@@ -8,6 +8,7 @@ export interface SFXSound {
   isCustom: boolean; // uploaded by user via file input
   customFileId?: string; // key in IndexedDB for file data
   url?: string; // static URL to hosted file on the site
+  localPath?: string; // relative path within linked local folder
   synthType?: 'portal' | 'laser' | 'alarm' | 'shatter' | 'subdrop' | 'buzz' | 'hum' | 'spark'; // synthesis parameters
   playCount: number;
   order: number;
@@ -29,6 +30,7 @@ export interface BGMTrack {
   isCustom: boolean;
   customFileId?: string;
   url?: string;
+  localPath?: string; // relative path within linked local folder
 }
 
 export interface RadioPlayScript {
@@ -46,3 +48,4 @@ export interface HistoryEntry {
   sounds: SFXSound[];
   bgmTracks?: BGMTrack[];
 }
+

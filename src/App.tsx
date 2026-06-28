@@ -32,6 +32,16 @@ import {
   loadUploadsCatalog,
   getMediaFromDatabase
 } from './utils/firebaseSync';
+import {
+  isFileSystemAccessSupported,
+  getPersistedFolderHandle,
+  pickLocalFolder,
+  persistFolderHandle,
+  clearPersistedFolderHandle,
+  verifyPermission,
+  scanForAudioFiles,
+  LocalAudioFile,
+} from './utils/localFolder';
 import HistoryPanel from './components/HistoryPanel';
 
 import ScriptPanel from './components/ScriptPanel';
@@ -184,6 +194,11 @@ export default function App() {
   const [cloudSaveResult, setCloudSaveResult] = useState<'success' | 'failed' | null>(null);
   const [isCloudLoaded, setIsCloudLoaded] = useState(false);
 
+  // Local Folder state
+  const [folderHandle, setFolderHandle] = useState<FileSystemDirectoryHandle | null>(null);
+  const [folderName, setFolderName] = useState<string | null>(null);
+  const [folderFiles, setFolderFiles] = useState<LocalAudioFile[]>([]);
+
   const [activeLineId, setActiveLineId] = useState<number>(1);
   const [isPracticeMode, setIsPracticeMode] = useState<boolean>(true); // practice/edit mode vs live performance
   const [nextCueId, setNextCueId] = useState<string | null>(null);
@@ -196,18 +211,64 @@ export default function App() {
   const [showInfoPanel, setShowInfoPanel] = useState<boolean>(true);
   const importInputRef = useRef<HTMLInputElement | null>(null);
 
-  // Pre-cache custom uploaded audio blobs from URL or IndexedDB on components mount
+  // Restore persisted local folder handle on mount
+  useEffect(() => {
+    if (!isFileSystemAccessSupported()) return;
+    (async () => {
+      try {
+        const handle = await getPersistedFolderHandle();
+        if (handle) {
+          const granted = await verifyPermission(handle, true);
+          if (granted) {
+            setFolderHandle(handle);
+            setFolderName(handle.name);
+            const files = await scanForAudioFiles(handle);
+            setFolderFiles(files);
+          }
+        }
+      } catch (e) {
+        console.warn('Could not restore persisted folder handle:', e);
+      }
+    })();
+  }, []);
+
+  // Handler: Link a new local folder
+  const handleLinkFolder = useCallback(async () => {
+    try {
+      const handle = await pickLocalFolder();
+      await persistFolderHandle(handle);
+      setFolderHandle(handle);
+      setFolderName(handle.name);
+      const files = await scanForAudioFiles(handle);
+      setFolderFiles(files);
+    } catch (e: any) {
+      // User cancelled the picker or API error
+      if (e.name !== 'AbortError') {
+        console.error('Failed to link local folder:', e);
+      }
+    }
+  }, []);
+
+  // Handler: Unlink the local folder
+  const handleUnlinkFolder = useCallback(async () => {
+    await clearPersistedFolderHandle();
+    setFolderHandle(null);
+    setFolderName(null);
+    setFolderFiles([]);
+  }, []);
+
+  // Pre-cache custom uploaded audio blobs from local folder / IndexedDB on mount
   useEffect(() => {
     sounds.forEach(async (sound) => {
       if (sound.isCustom) {
-        const fileBlob = await getCustomSoundBlob(sound);
+        const fileBlob = await getCustomSoundBlob(sound, folderHandle);
         if (fileBlob) {
           const cacheId = sound.customFileId || sound.id;
           await audioEngine.cacheFile(cacheId, fileBlob);
         }
       }
     });
-  }, [sounds]);
+  }, [sounds, folderHandle]);
 
   // Save states to LocalStorage on modifications (strip large base64 data URLs to avoid quota errors)
   useEffect(() => {
@@ -442,7 +503,7 @@ export default function App() {
 
     if (sound.isCustom) {
       const cacheId = sound.customFileId || sound.id;
-      const fileBlob = await getCustomSoundBlob(sound);
+      const fileBlob = await getCustomSoundBlob(sound, folderHandle);
       if (!fileBlob) {
         console.error('Audio asset was missing for ID:', sound.id);
         return;
@@ -453,7 +514,7 @@ export default function App() {
       if (!sound.synthType) return;
       audioEngine.playSynth(sound.id, sound.synthType, sound.volume, sound.isLooping);
     }
-  }, []);
+  }, [folderHandle]);
 
   const triggerStopSound = useCallback((soundId: string) => {
     audioEngine.stopSound(soundId);
@@ -1030,7 +1091,15 @@ export default function App() {
               {/* Soundboard creation forms, nested neatly in practice mode */}
               {isPracticeMode && (
                 <div className="pt-4 border-t border-slate-850/70">
-                  <SoundCreator onAddSound={handleCreateSound} existingSounds={sounds} />
+                  <SoundCreator
+                    onAddSound={handleCreateSound}
+                    existingSounds={sounds}
+                    folderHandle={folderHandle}
+                    folderName={folderName}
+                    folderFiles={folderFiles}
+                    onLinkFolder={handleLinkFolder}
+                    onUnlinkFolder={handleUnlinkFolder}
+                  />
                 </div>
               )}
             </div>
