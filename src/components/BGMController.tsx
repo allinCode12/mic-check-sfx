@@ -4,10 +4,7 @@ import { saveAudioFile, getAudioFile, deleteAudioFile } from '../utils/audioDb';
 import { audioEngine } from '../utils/audioEngine';
 import { BGMTrack } from '../types';
 import { uploadMediaToDatabase, getMediaFromDatabase } from '../utils/firebaseSync';
-
-const PRESET_TRACKS: BGMTrack[] = [
-  { id: 'procedural_cosmic_drone', name: 'Ambient Cosmic Drone 🌌 (Synth)', isCustom: false },
-];
+import { PRESET_TRACKS } from '../utils/presets';
 
 interface BGMControllerProps {
   customTracks: BGMTrack[];
@@ -16,7 +13,7 @@ interface BGMControllerProps {
 
 export default function BGMController({ customTracks, onUpdateTracks }: BGMControllerProps) {
   const allTracks = [...PRESET_TRACKS, ...customTracks];
-  const [selectedTrackId, setSelectedTrackId] = useState<string>('procedural_cosmic_drone');
+  const [selectedTrackId, setSelectedTrackId] = useState<string>('bgm_blue_drops_2nd_mix');
   const [isPlaying, setIsPlaying] = useState<boolean>(false);
   const [isPaused, setIsPaused] = useState<boolean>(false);
   const [volume, setVolume] = useState<number>(0.4);
@@ -76,18 +73,10 @@ export default function BGMController({ customTracks, onUpdateTracks }: BGMContr
       const track = allTracks.find(t => t.id === selectedTrackId);
       if (track) {
         let fileBlob = track.customFileId ? await getAudioFile(track.customFileId) : null;
-        // If not in local IndexedDB, try fetching from Firebase RTDB
+        // If not in local IndexedDB, try fetching from static URL or Firebase RTDB
         if (!fileBlob && track.url) {
           try {
-            // Try Firebase RTDB first (base64 stored media)
-            const originalName = track.name.replace(' 🎵', '').replace(/\s/g, '_');
-            const rtdbBlob = await getMediaFromDatabase(originalName);
-            if (rtdbBlob) {
-              fileBlob = rtdbBlob;
-              if (track.customFileId) {
-                await saveAudioFile(track.customFileId, fileBlob);
-              }
-            } else if (track.url.startsWith('data:')) {
+            if (track.url.startsWith('data:')) {
               // data: URL — fetch directly
               const res = await fetch(track.url);
               if (res.ok) {
@@ -96,9 +85,25 @@ export default function BGMController({ customTracks, onUpdateTracks }: BGMContr
                   await saveAudioFile(track.customFileId, fileBlob);
                 }
               }
+            } else if (!track.isCustom) {
+              // Static preset URL — fetch directly
+              const res = await fetch(track.url);
+              if (res.ok) {
+                fileBlob = await res.blob();
+              }
+            } else {
+              // Try Firebase RTDB first (base64 stored media)
+              const originalName = track.name.replace(' 🎵', '').replace(/\s/g, '_');
+              const rtdbBlob = await getMediaFromDatabase(originalName);
+              if (rtdbBlob) {
+                fileBlob = rtdbBlob;
+                if (track.customFileId) {
+                  await saveAudioFile(track.customFileId, fileBlob);
+                }
+              }
             }
           } catch (e) {
-            console.warn('Failed to fetch BGM track from Firebase:', e);
+            console.warn('Failed to fetch BGM track from Firebase/URL:', e);
           }
         }
         if (fileBlob) {
@@ -106,7 +111,7 @@ export default function BGMController({ customTracks, onUpdateTracks }: BGMContr
           setIsPlaying(true);
           setIsPaused(false);
         } else {
-          setUploadError('Could not load uploaded BGM track data from storage or URL.');
+          setUploadError('Could not load BGM track data from storage or URL.');
         }
       }
     }

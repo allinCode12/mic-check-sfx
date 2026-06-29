@@ -24,6 +24,7 @@ import { DEFAULT_RADIO_PLAY } from './utils/defaultScript';
 import { getAudioFile, saveAudioFile } from './utils/audioDb';
 import { audioEngine } from './utils/audioEngine';
 import { getCustomSoundBlob } from './utils/customSound';
+import { PRESET_SOUNDS, PRESET_TRACKS } from './utils/presets';
 import {
   saveSettingsToFirebase,
   loadSettingsFromFirebase,
@@ -50,105 +51,6 @@ import SoundCreator from './components/SoundCreator';
 import MasterVisualizer from './components/MasterVisualizer';
 import BGMController from './components/BGMController';
 
-const PRESET_SOUNDS: SFXSound[] = [
-  {
-    id: 'snd_hum',
-    name: 'Engine Hum 🛸',
-    color: 'blue',
-    keyShortcut: '1',
-    isLooping: true,
-    volume: 0.5,
-    isCustom: false,
-    synthType: 'hum',
-    playCount: 0,
-    order: 0,
-  },
-  {
-    id: 'snd_alarm',
-    name: 'AI Alarm 🚨',
-    color: 'magenta',
-    keyShortcut: '2',
-    isLooping: true,
-    volume: 0.45,
-    isCustom: false,
-    synthType: 'alarm',
-    playCount: 0,
-    order: 1,
-  },
-  {
-    id: 'snd_spark',
-    name: 'Static Spark ⚡',
-    color: 'amber',
-    keyShortcut: '3',
-    isLooping: false,
-    volume: 0.7,
-    isCustom: false,
-    synthType: 'spark',
-    playCount: 0,
-    order: 2,
-  },
-  {
-    id: 'snd_subdrop',
-    name: 'Sub Drop 🔈',
-    color: 'purple',
-    keyShortcut: '4',
-    isLooping: false,
-    volume: 0.8,
-    isCustom: false,
-    synthType: 'subdrop',
-    playCount: 0,
-    order: 3,
-  },
-  {
-    id: 'snd_shatter',
-    name: 'Digital Shatter 💎',
-    color: 'rose',
-    keyShortcut: '5',
-    isLooping: false,
-    volume: 0.75,
-    isCustom: false,
-    synthType: 'shatter',
-    playCount: 0,
-    order: 4,
-  },
-  {
-    id: 'snd_portal',
-    name: 'Portal Whoosh 🌀',
-    color: 'cyan',
-    keyShortcut: '6',
-    isLooping: false,
-    volume: 0.7,
-    isCustom: false,
-    synthType: 'portal',
-    playCount: 0,
-    order: 5,
-  },
-  {
-    id: 'snd_laser',
-    name: 'Retro Laser ⚡',
-    color: 'green',
-    keyShortcut: '7',
-    isLooping: false,
-    volume: 0.65,
-    isCustom: false,
-    synthType: 'laser',
-    playCount: 0,
-    order: 6,
-  },
-  {
-    id: 'snd_buzz',
-    name: 'Buzzer ⚠️',
-    color: 'yellow',
-    keyShortcut: '8',
-    isLooping: false,
-    volume: 0.7,
-    isCustom: false,
-    synthType: 'buzz',
-    playCount: 0,
-    order: 7,
-  },
-];
-
 export default function App() {
   const [historyList, setHistoryList] = useState<HistoryEntry[]>([]);
   const [uploadsList, setUploadsList] = useState<string[]>([]);
@@ -158,7 +60,9 @@ export default function App() {
     const saved = localStorage.getItem('micchecksfx_sounds');
     if (saved) {
       try {
-        return JSON.parse(saved);
+        const parsed = JSON.parse(saved) as SFXSound[];
+        const customOnly = parsed.filter(s => s.isCustom && !PRESET_SOUNDS.some(p => p.name.toLowerCase() === s.name.toLowerCase()));
+        return [...PRESET_SOUNDS, ...customOnly];
       } catch (e) {
         console.warn('Could not parse saved sounds config on init:', e);
       }
@@ -182,7 +86,9 @@ export default function App() {
     const saved = localStorage.getItem('micchecksfx_bgm_tracks');
     if (saved) {
       try {
-        return JSON.parse(saved);
+        const parsed = JSON.parse(saved) as BGMTrack[];
+        const customOnly = parsed.filter(t => t.isCustom && !PRESET_TRACKS.some(p => p.name.toLowerCase() === t.name.toLowerCase()));
+        return customOnly;
       } catch (e) {
         console.warn('Could not parse saved BGM tracks on init:', e);
       }
@@ -336,13 +242,15 @@ export default function App() {
       const cloudSettings = await loadSettingsFromFirebase();
       if (cloudSettings) {
         if (cloudSettings.sounds && cloudSettings.sounds.length > 0) {
-          setSounds(cloudSettings.sounds);
+          const customOnly = cloudSettings.sounds.filter((s: SFXSound) => s.isCustom && !PRESET_SOUNDS.some(p => p.name.toLowerCase() === s.name.toLowerCase()));
+          setSounds([...PRESET_SOUNDS, ...customOnly]);
+        }
+        if (cloudSettings.bgmTracks) {
+          const customOnly = cloudSettings.bgmTracks.filter((t: BGMTrack) => t.isCustom && !PRESET_TRACKS.some(p => p.name.toLowerCase() === t.name.toLowerCase()));
+          setBgmTracks(customOnly);
         }
         if (cloudSettings.script && cloudSettings.script.lines) {
           setScript(cloudSettings.script);
-        }
-        if (cloudSettings.bgmTracks) {
-          setBgmTracks(cloudSettings.bgmTracks);
         }
       }
       setIsCloudLoaded(true);
@@ -376,12 +284,17 @@ export default function App() {
 
   const handleRestoreVersion = (entry: HistoryEntry) => {
     setScript(entry.script);
-    setSounds(entry.sounds);
+    
+    const customOnly = entry.sounds.filter(s => s.isCustom && !PRESET_SOUNDS.some(p => p.name.toLowerCase() === s.name.toLowerCase()));
+    setSounds([...PRESET_SOUNDS, ...customOnly]);
+
     if (entry.bgmTracks) {
-      setBgmTracks(entry.bgmTracks);
+      const bgmCustomOnly = entry.bgmTracks.filter(t => t.isCustom && !PRESET_TRACKS.some(p => p.name.toLowerCase() === t.name.toLowerCase()));
+      setBgmTracks(bgmCustomOnly);
     } else {
       setBgmTracks([]);
     }
+
     if (entry.script.lines && entry.script.lines.length > 0) {
       setActiveLineId(entry.script.lines[0].id);
     } else {
@@ -501,9 +414,26 @@ export default function App() {
       prev.map((s) => (s.id === sound.id ? { ...s, playCount: s.playCount + 1 } : s))
     );
 
-    if (sound.isCustom) {
+    if (sound.isCustom || sound.url) {
       const cacheId = sound.customFileId || sound.id;
-      const fileBlob = await getCustomSoundBlob(sound, folderHandle);
+      let fileBlob: Blob | null = null;
+      if (sound.isCustom) {
+        fileBlob = await getCustomSoundBlob(sound, folderHandle);
+      } else if (sound.url) {
+        try {
+          const baseUrl = import.meta.env.BASE_URL;
+          const cleanUrl = sound.url.startsWith('/') || sound.url.startsWith('data:') || sound.url.startsWith('blob:') || sound.url.startsWith('http')
+            ? sound.url
+            : `${baseUrl}${sound.url}`;
+          const res = await fetch(cleanUrl);
+          if (res.ok) {
+            fileBlob = await res.blob();
+          }
+        } catch (e) {
+          console.error('Failed to fetch preset sound asset from URL:', e);
+        }
+      }
+
       if (!fileBlob) {
         console.error('Audio asset was missing for ID:', sound.id);
         return;
@@ -560,8 +490,9 @@ export default function App() {
       return;
     }
 
-    // Attempt to play user uploaded customized tracks matching the cue by name
-    const match = bgmTracks.find((t) => 
+    // Attempt to play preset tracks or user uploaded customized tracks matching the cue by name
+    const allAvailableTracks = [...PRESET_TRACKS, ...bgmTracks];
+    const match = allAvailableTracks.find((t) => 
       t.name.toLowerCase().includes(cleanCue) || cleanCue.includes(t.name.toLowerCase())
     );
     if (match) {
@@ -569,7 +500,9 @@ export default function App() {
       if (!fileBlob && match.url) {
         try {
           const baseUrl = import.meta.env.BASE_URL;
-          const cleanUrl = match.url.startsWith('/') ? match.url : `${baseUrl}${match.url}`;
+          const cleanUrl = match.url.startsWith('/') || match.url.startsWith('data:') || match.url.startsWith('blob:') || match.url.startsWith('http')
+            ? match.url
+            : `${baseUrl}${match.url}`;
           const res = await fetch(cleanUrl);
           if (res.ok) {
             fileBlob = await res.blob();
