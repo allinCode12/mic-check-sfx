@@ -31,6 +31,15 @@ export default function ScriptPanel({
   const timerRef = useRef<NodeJS.Timeout | null>(null);
   const activeLineRef = useRef<HTMLDivElement | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
+  const lineEditorRef = useRef<HTMLTextAreaElement | null>(null);
+
+  // Auto-resize line editor textarea height based on content
+  useEffect(() => {
+    if (lineEditorRef.current) {
+      lineEditorRef.current.style.height = 'auto';
+      lineEditorRef.current.style.height = `${lineEditorRef.current.scrollHeight}px`;
+    }
+  }, [editingLineText, editingLineId]);
 
   // Auto-scroll to active script line
   useEffect(() => {
@@ -386,15 +395,16 @@ export default function ScriptPanel({
                     <div className="flex items-center justify-between text-[10px] font-mono text-slate-500">
                       <span>EDITING LINE #{idx + 1}</span>
                     </div>
-                    <input
-                      type="text"
+                    <textarea
+                      ref={lineEditorRef}
                       value={editingLineText}
                       onChange={(e) => setEditingLineText(e.target.value)}
-                      className="w-full bg-slate-900 border border-slate-800 text-sm text-white px-2.5 py-1.5 rounded focus:outline-none focus:ring-1 focus:ring-cyan-500"
+                      className="w-full bg-slate-900 border border-slate-800 text-sm text-white px-2.5 py-1.5 rounded focus:outline-none focus:ring-1 focus:ring-cyan-500 resize-none leading-relaxed font-sans overflow-hidden"
                       placeholder="CHARACTER: Dialogue content with [SFX: Cue]"
                       autoFocus
                       onKeyDown={(e) => {
-                        if (e.key === 'Enter') {
+                        if (e.key === 'Enter' && !e.shiftKey) {
+                          e.preventDefault();
                           handleSaveSingleLine(line.id);
                         } else if (e.key === 'Escape') {
                           setEditingLineId(null);
