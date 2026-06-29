@@ -126,10 +126,11 @@ export default function SFXPad({
 
   // Track dragging styling
   const [isHovered, setIsHovered] = useState(false);
+  const [canDrag, setCanDrag] = useState(false);
 
   return (
     <div
-      draggable={isPracticeMode}
+      draggable={isPracticeMode && canDrag}
       onDragStart={(e) => {
         e.dataTransfer.setData('text/plain', sound.id);
       }}
@@ -157,7 +158,11 @@ export default function SFXPad({
           {/* Header row: Drag handler, name, and delete */}
           <div className="flex items-center justify-between gap-1">
             <div className="flex items-center gap-1 flex-1">
-              <span className="cursor-grab text-slate-500 hover:text-slate-300 p-0.5 shrink-0 drag-handle">
+              <span
+                className="cursor-grab text-slate-500 hover:text-slate-300 p-0.5 shrink-0 drag-handle"
+                onMouseEnter={() => setCanDrag(true)}
+                onMouseLeave={() => setCanDrag(false)}
+              >
                 <GripVertical size={14} />
               </span>
               <input
