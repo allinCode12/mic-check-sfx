@@ -236,6 +236,16 @@ class AudioEngine {
     this.stopBGM();
   }
 
+  // Stop only all playing sound effects, keeping BGM active
+  stopAllSFX() {
+    this.activeVoices.forEach(voice => {
+      try {
+        voice.stop();
+      } catch (e) {}
+    });
+    this.activeVoices.clear();
+  }
+
   // Stop a specific sound's entire playing voices (for instance when loop toggled off or specific Pad is toggled stop)
   stopSound(soundId: string) {
     this.activeVoices.forEach((voice, voiceId) => {

@@ -486,6 +486,12 @@ export default function App() {
 
   // Sync cue trigger from raw clicking formatted SFX script badges
   const handleTriggerSFXCue = useCallback((cueName: string) => {
+    const cleanCue = cueName.trim().toLowerCase();
+    if (cleanCue === 'stop' || cleanCue === 'stop sfx' || cleanCue === 'silence' || cleanCue === 'mute' || cleanCue === 'off') {
+      audioEngine.stopAllSFX();
+      return;
+    }
+
     // Attempt to search our audio nodes matching the cue name
     const matches = sounds.find(
       (s) => s.name.toLowerCase().includes(cueName.toLowerCase()) || cueName.toLowerCase().includes(s.name.toLowerCase())
@@ -496,6 +502,14 @@ export default function App() {
       triggerPlaySound(matches);
       // Additionally flag it automatically as the Next Cue so they see visual focus
       setNextCueId(matches.id);
+
+      // Smoothly scroll/anchor the launchpad to where the sfx pad container is
+      setTimeout(() => {
+        const el = document.getElementById(`sfx-pad-${matches.id}`);
+        if (el) {
+          el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+      }, 50);
     } else {
       console.warn(`No active soundboard pads correspond to the script cue: "${cueName}"`);
     }
@@ -876,6 +890,17 @@ export default function App() {
             {isSavingToCloud ? 'Saving...' : cloudSaveResult === 'success' ? '☁ Saved!' : cloudSaveResult === 'failed' ? 'Failed!' : hasUnsavedChanges ? '☁ Save to Cloud' : '☁ Synced'}
           </button>
 
+          {/* Stop SFX only button */}
+          <button
+            type="button"
+            onClick={() => audioEngine.stopAllSFX()}
+            className="h-10 px-3.5 bg-slate-900 hover:bg-slate-800 text-rose-400 border border-slate-850 hover:border-rose-900/50 font-bold text-xs rounded-xl flex items-center gap-1.5 transition-all active:scale-95 uppercase tracking-wider font-mono shrink-0 cursor-pointer"
+            title="Stop all playing sound effects, keeping background music playing"
+          >
+            <Square size={13} />
+            STOP SFX
+          </button>
+
           {/* Master Panic & Backup controls */}
           <button
             type="button"
@@ -1057,6 +1082,7 @@ export default function App() {
                   {sortedSounds.map((sound, idx) => (
                     <div
                       key={sound.id}
+                      id={`sfx-pad-${sound.id}`}
                       onDragOver={handleDragOver}
                       onDrop={(e) => handleDropOnPad(e, sound.id)}
                     >
