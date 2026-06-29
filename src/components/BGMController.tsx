@@ -9,14 +9,19 @@ import { PRESET_TRACKS } from '../utils/presets';
 interface BGMControllerProps {
   customTracks: BGMTrack[];
   onUpdateTracks: (tracks: BGMTrack[]) => void;
+  volume?: number;
+  onVolumeChange?: (vol: number) => void;
 }
 
-export default function BGMController({ customTracks, onUpdateTracks }: BGMControllerProps) {
+export default function BGMController({ customTracks, onUpdateTracks, volume: propVolume, onVolumeChange }: BGMControllerProps) {
   const allTracks = [...PRESET_TRACKS, ...customTracks];
   const [selectedTrackId, setSelectedTrackId] = useState<string>('bgm_blue_drops_2nd_mix');
   const [isPlaying, setIsPlaying] = useState<boolean>(false);
   const [isPaused, setIsPaused] = useState<boolean>(false);
-  const [volume, setVolume] = useState<number>(0.4);
+  const [localVolume, setLocalVolume] = useState<number>(0.4);
+  
+  const volume = propVolume !== undefined ? propVolume : localVolume;
+  const setVolume = onVolumeChange || setLocalVolume;
   const [isLooping, setIsLooping] = useState<boolean>(true);
   const [isUploading, setIsUploading] = useState<boolean>(false);
   const [uploadError, setUploadError] = useState<string>('');

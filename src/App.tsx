@@ -112,6 +112,32 @@ export default function App() {
   const [masterVolume, setMasterVolume] = useState<number>(0.8);
   const [isMuted, setIsMuted] = useState<boolean>(false);
   const [playingStateMap, setPlayingStateMap] = useState<{ [soundId: string]: boolean }>({});
+  const [bgmVolume, setBgmVolume] = useState<number>(0.4);
+
+  const applyVolumePreset = useCallback((preset: 'chill' | 'loud' | 'loudest') => {
+    let sfxVol = 0.75;
+    let bgmVol = 0.4;
+    if (preset === 'chill') {
+      sfxVol = 0.4;
+      bgmVol = 0.3;
+    } else if (preset === 'loud') {
+      sfxVol = 0.7;
+      bgmVol = 0.5;
+    } else if (preset === 'loudest') {
+      sfxVol = 0.9;
+      bgmVol = 0.7;
+    }
+
+    setBgmVolume(bgmVol);
+    audioEngine.setBGMVolume(bgmVol);
+
+    setSounds((prev) =>
+      prev.map((s) => ({
+        ...s,
+        volume: sfxVol,
+      }))
+    );
+  }, []);
   
   // App UI Helpers
   const [showInfoPanel, setShowInfoPanel] = useState<boolean>(true);
@@ -793,6 +819,35 @@ export default function App() {
             </div>
           </div>
 
+          {/* Volume Presets */}
+          <div className="bg-slate-900 border border-slate-800 p-1.5 rounded-xl flex items-center gap-1.5 h-10 select-none">
+            <span className="text-[10px] font-mono text-slate-450 px-1 font-bold">PRESET:</span>
+            <button
+              type="button"
+              onClick={() => applyVolumePreset('chill')}
+              className="px-2.5 py-1 text-[10px] font-mono font-semibold rounded bg-slate-950 hover:bg-slate-800 text-cyan-400 border border-cyan-500/10 cursor-pointer transition active:scale-95 hover:border-cyan-500/30"
+              title="Chill Preset (BGM: 30%, SFX: 40%)"
+            >
+              CHILL
+            </button>
+            <button
+              type="button"
+              onClick={() => applyVolumePreset('loud')}
+              className="px-2.5 py-1 text-[10px] font-mono font-semibold rounded bg-slate-950 hover:bg-slate-800 text-fuchsia-400 border border-fuchsia-500/10 cursor-pointer transition active:scale-95 hover:border-fuchsia-500/30"
+              title="Loud Preset (BGM: 50%, SFX: 70%)"
+            >
+              LOUD
+            </button>
+            <button
+              type="button"
+              onClick={() => applyVolumePreset('loudest')}
+              className="px-2.5 py-1 text-[10px] font-mono font-semibold rounded bg-slate-950 hover:bg-slate-800 text-rose-450 border border-rose-500/10 cursor-pointer transition active:scale-95 hover:border-rose-500/30"
+              title="Loudest Preset (BGM: 70%, SFX: 90%)"
+            >
+              MAX
+            </button>
+          </div>
+
           {/* Cloud Sync Controls */}
           <button
             type="button"
@@ -894,6 +949,8 @@ export default function App() {
             <BGMController
               customTracks={bgmTracks}
               onUpdateTracks={setBgmTracks}
+              volume={bgmVolume}
+              onVolumeChange={setBgmVolume}
             />
           </div>
 
