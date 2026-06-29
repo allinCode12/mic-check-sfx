@@ -39,6 +39,9 @@ import bgmHundredDays from '../DigiSoundboard/BGM/Hundred Days.mp3';
 import bgmOutgoingHope from '../DigiSoundboard/BGM/Outgoing Hope.mp3';
 import bgmSinkingWorld from '../DigiSoundboard/BGM/Sinking World.mp3';
 import bgmTheConfronters from '../DigiSoundboard/BGM/The Confronters.mp3';
+import bgmAd1 from '../DigiSoundboard/BGM/Ad 1 (mx3).mp3';
+import bgmAd2 from '../DigiSoundboard/BGM/Ad 2 (white rose papaya).mp3';
+import bgmStationId from '../DigiSoundboard/BGM/Station ID (win radio).mp3';
 
 const colors: SFXSound['color'][] = ['cyan', 'magenta', 'yellow', 'green', 'rose', 'amber', 'blue', 'purple'];
 
@@ -105,5 +108,8 @@ export const PRESET_TRACKS: BGMTrack[] = [
   { id: 'bgm_outgoing_hope', name: 'Outgoing Hope', isCustom: false, url: bgmOutgoingHope },
   { id: 'bgm_sinking_world', name: 'Sinking World', isCustom: false, url: bgmSinkingWorld },
   { id: 'bgm_the_confronters', name: 'The Confronters', isCustom: false, url: bgmTheConfronters },
+  { id: 'bgm_ad_1_mx3', name: 'Ad 1 (mx3)', isCustom: false, url: bgmAd1 },
+  { id: 'bgm_ad_2_white_rose_papaya', name: 'Ad 2 (white rose papaya)', isCustom: false, url: bgmAd2 },
+  { id: 'bgm_station_id_win_radio', name: 'Station ID (win radio)', isCustom: false, url: bgmStationId },
   { id: 'procedural_cosmic_drone', name: 'Ambient Cosmic Drone 🌌 (Synth)', isCustom: false },
 ];
