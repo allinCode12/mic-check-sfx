@@ -25,6 +25,8 @@ export default function ScriptPanel({
   const [timerSeconds, setTimerSeconds] = useState<number>(0);
   const [isEditingScript, setIsEditingScript] = useState<boolean>(false);
   const [rawScriptText, setRawScriptText] = useState<string>('');
+  const [editingLineId, setEditingLineId] = useState<number | null>(null);
+  const [editingLineText, setEditingLineText] = useState<string>('');
   
   const timerRef = useRef<NodeJS.Timeout | null>(null);
   const activeLineRef = useRef<HTMLDivElement | null>(null);
@@ -135,6 +137,48 @@ export default function ScriptPanel({
     if (parsedLines.length > 0) {
       setActiveLineId(parsedLines[0].id);
     }
+  };
+
+  const handleSaveSingleLine = (lineId: number) => {
+    const lineText = editingLineText.trim();
+    if (!lineText) {
+      setEditingLineId(null);
+      return;
+    }
+
+    const match = lineText.match(/^([^:]+):\s*(.*)$/);
+    let character: string | undefined = undefined;
+    let text = lineText;
+
+    if (match) {
+      character = match[1].trim().toUpperCase();
+      text = match[2].trim();
+    }
+
+    const sfxMatch = text.match(/\[SFX:\s*([^\]]+)\]/i);
+    const sfxCue = sfxMatch ? sfxMatch[1].trim() : undefined;
+
+    const bgmMatch = text.match(/\[BGM:\s*([^\]]+)\]/i);
+    const bgmCue = bgmMatch ? bgmMatch[1].trim() : undefined;
+
+    const updatedLines = script.lines.map((line) => {
+      if (line.id === lineId) {
+        return {
+          id: line.id,
+          character,
+          text,
+          sfxCue,
+          bgmCue,
+        };
+      }
+      return line;
+    });
+
+    onUpdateScript({
+      ...script,
+      lines: updatedLines,
+    });
+    setEditingLineId(null);
   };
 
   // Highlights raw text for SFX Cues & BGM Cues
@@ -328,9 +372,55 @@ export default function ScriptPanel({
           >
             {script.lines.map((line, idx) => {
               const isActive = line.id === activeLineId;
+              const isEditing = line.id === editingLineId;
               const hasCue = !!line.sfxCue;
               const hasBgmCue = !!line.bgmCue;
               
+              if (isEditing) {
+                return (
+                  <div
+                    key={line.id}
+                    ref={isActive ? activeLineRef : null}
+                    className="p-3 rounded-lg border bg-slate-950 border-cyan-500/80 shadow-[0_0_15px_rgba(6,182,212,0.15)] ring-1 ring-cyan-500/40 text-white flex flex-col gap-2"
+                  >
+                    <div className="flex items-center justify-between text-[10px] font-mono text-slate-500">
+                      <span>EDITING LINE #{idx + 1}</span>
+                    </div>
+                    <input
+                      type="text"
+                      value={editingLineText}
+                      onChange={(e) => setEditingLineText(e.target.value)}
+                      className="w-full bg-slate-900 border border-slate-800 text-sm text-white px-2.5 py-1.5 rounded focus:outline-none focus:ring-1 focus:ring-cyan-500"
+                      placeholder="CHARACTER: Dialogue content with [SFX: Cue]"
+                      autoFocus
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          handleSaveSingleLine(line.id);
+                        } else if (e.key === 'Escape') {
+                          setEditingLineId(null);
+                        }
+                      }}
+                    />
+                    <div className="flex justify-end gap-1.5 mt-1">
+                      <button
+                        type="button"
+                        onClick={() => setEditingLineId(null)}
+                        className="px-2.5 py-1 text-[10px] font-mono rounded bg-slate-800 hover:bg-slate-700 text-slate-300 cursor-pointer"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleSaveSingleLine(line.id)}
+                        className="px-2.5 py-1 text-[10px] font-mono rounded bg-cyan-500 hover:bg-cyan-400 text-black font-bold cursor-pointer"
+                      >
+                        Save
+                      </button>
+                    </div>
+                  </div>
+                );
+              }
+
               return (
                 <div
                   key={line.id}
@@ -345,6 +435,20 @@ export default function ScriptPanel({
                 >
                   {/* Line status flags */}
                   <div className="absolute right-3 top-2.5 flex items-center gap-1.5">
+                    {isPracticeMode && (
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setEditingLineId(line.id);
+                          setEditingLineText(line.character ? `${line.character}: ${line.text}` : line.text);
+                        }}
+                        className="text-slate-500 hover:text-cyan-400 p-0.5 rounded hover:bg-slate-855 transition cursor-pointer"
+                        title="Edit individual line"
+                      >
+                        <Edit2 size={11} />
+                      </button>
+                    )}
                     {hasCue && (
                       <span className="text-[9px] font-mono font-bold tracking-wider px-1.5 py-0.5 rounded uppercase bg-cyan-950 text-cyan-400 border border-cyan-500/20 group-hover:scale-105 transition-transform">
                         SFX Cue
