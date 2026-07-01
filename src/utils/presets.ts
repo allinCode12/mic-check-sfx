@@ -11,7 +11,7 @@ import sfx7 from '../DigiSoundboard/SFX/7. Light smacking noises.mp3';
 import sfx8 from '../DigiSoundboard/SFX/8. Heavy thud.mp3';
 import sfx10 from '../DigiSoundboard/SFX/10. ECG flatline.mp3';
 import sfx11 from '../DigiSoundboard/SFX/11. Scream fades to a shock, then breathing.mp3';
-import sfx12 from '../DigiSoundboard/SFX/12. Lightning strike.mp3';
+import sfx12 from '../DigiSoundboard/SFX/12. thundering noise.mp3';
 import sfx13 from '../DigiSoundboard/SFX/13. Metal sheathing.mp3';
 import sfx14 from '../DigiSoundboard/SFX/14. Thunder Flash.mp3';
 import sfx15 from '../DigiSoundboard/SFX/15. Metal ting.mp3';
@@ -30,6 +30,9 @@ import sfx27 from '../DigiSoundboard/SFX/27. Fire clashing sounds.mp3';
 import sfx28 from '../DigiSoundboard/SFX/28. Metal clashing.mp3';
 import sfx29 from '../DigiSoundboard/SFX/29. Hollow purple.mp3';
 import sfx30 from '../DigiSoundboard/SFX/30. Wooshing sounds (final).mp3';
+import sfx31 from '../DigiSoundboard/SFX/31. footsteps repeating.mp3';
+import sfx32 from '../DigiSoundboard/SFX/32. Lightning strike.mp3';
+import sfxRhythmicBeating from '../DigiSoundboard/SFX/rhythmic beating, then a beeping of a ecg machine.mp3';
 
 // Import BGM Files
 import bgmBlueDrops2 from '../DigiSoundboard/BGM/Blue Drops (2nd Mix).mp3';
@@ -56,7 +59,7 @@ const rawSFX = [
   { file: sfx8, name: '8. Heavy thud' },
   { file: sfx10, name: '10. ECG flatline' },
   { file: sfx11, name: '11. Scream fades to a shock, then breathing' },
-  { file: sfx12, name: '12. Lightning strike' },
+  { file: sfx12, name: '12. thundering noise' },
   { file: sfx13, name: '13. Metal sheathing' },
   { file: sfx14, name: '14. Thunder Flash' },
   { file: sfx15, name: '15. Metal ting' },
@@ -75,6 +78,9 @@ const rawSFX = [
   { file: sfx28, name: '28. Metal clashing' },
   { file: sfx29, name: '29. Hollow purple' },
   { file: sfx30, name: '30. Wooshing sounds (final)' },
+  { file: sfx31, name: '31. footsteps repeating' },
+  { file: sfx32, name: '32. Lightning strike' },
+  { file: sfxRhythmicBeating, name: 'rhythmic beating, then a beeping of a ecg machine' },
 ];
 
 export const PRESET_SOUNDS: SFXSound[] = rawSFX.map((item, index) => {
