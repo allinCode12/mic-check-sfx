@@ -33,6 +33,10 @@ import sfx30 from '../DigiSoundboard/SFX/30. Wooshing sounds (final).mp3';
 import sfx31 from '../DigiSoundboard/SFX/31. footsteps repeating.mp3';
 import sfx32 from '../DigiSoundboard/SFX/32. Lightning strike.mp3';
 import sfxRhythmicBeating from '../DigiSoundboard/SFX/rhythmic beating, then a beeping of a ecg machine.mp3';
+import sfxHeavyMetal from '../DigiSoundboard/SFX/HEAVY METAL.mp3';
+import sfxPunch from '../DigiSoundboard/SFX/PUNCH.mp3';
+import sfxRedirect from '../DigiSoundboard/SFX/REDIRECT.mp3';
+import sfxSolaceBang from '../DigiSoundboard/SFX/solace bang.mp3';
 
 // Import BGM Files
 import bgmBlueDrops2 from '../DigiSoundboard/BGM/Blue Drops (2nd Mix).mp3';
@@ -45,6 +49,7 @@ import bgmTheConfronters from '../DigiSoundboard/BGM/The Confronters.mp3';
 import bgmAd1 from '../DigiSoundboard/BGM/Ad 1 (mx3).mp3';
 import bgmAd2 from '../DigiSoundboard/BGM/Ad 2 (white rose papaya).mp3';
 import bgmStationId from '../DigiSoundboard/BGM/Station ID (win radio).mp3';
+import bgmOlympus from '../DigiSoundboard/BGM/Olympus.mp3';
 
 const colors: SFXSound['color'][] = ['cyan', 'magenta', 'yellow', 'green', 'rose', 'amber', 'blue', 'purple'];
 
@@ -81,6 +86,10 @@ const rawSFX = [
   { file: sfx31, name: '31. footsteps repeating' },
   { file: sfx32, name: '32. Lightning strike' },
   { file: sfxRhythmicBeating, name: 'rhythmic beating, then a beeping of a ecg machine' },
+  { file: sfxHeavyMetal, name: 'HEAVY METAL' },
+  { file: sfxPunch, name: 'PUNCH' },
+  { file: sfxRedirect, name: 'REDIRECT' },
+  { file: sfxSolaceBang, name: 'solace bang' },
 ];
 
 export const PRESET_SOUNDS: SFXSound[] = rawSFX.map((item, index) => {
@@ -117,5 +126,6 @@ export const PRESET_TRACKS: BGMTrack[] = [
   { id: 'bgm_ad_1_mx3', name: 'Ad 1 (mx3)', isCustom: false, url: bgmAd1 },
   { id: 'bgm_ad_2_white_rose_papaya', name: 'Ad 2 (white rose papaya)', isCustom: false, url: bgmAd2 },
   { id: 'bgm_station_id_win_radio', name: 'Station ID (win radio)', isCustom: false, url: bgmStationId },
+  { id: 'bgm_olympus', name: 'Olympus', isCustom: false, url: bgmOlympus },
   { id: 'procedural_cosmic_drone', name: 'Ambient Cosmic Drone 🌌 (Synth)', isCustom: false },
 ];

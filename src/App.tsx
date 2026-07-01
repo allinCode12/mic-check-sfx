@@ -451,7 +451,10 @@ export default function App() {
           const cleanUrl = sound.url.startsWith('/') || sound.url.startsWith('data:') || sound.url.startsWith('blob:') || sound.url.startsWith('http')
             ? sound.url
             : `${baseUrl}${sound.url}`;
-          const res = await fetch(cleanUrl);
+          const busterUrl = cleanUrl.startsWith('data:') || cleanUrl.startsWith('blob:')
+            ? cleanUrl
+            : cleanUrl.includes('?') ? `${cleanUrl}&t=${Date.now()}` : `${cleanUrl}?t=${Date.now()}`;
+          const res = await fetch(busterUrl, { cache: 'no-cache' });
           if (res.ok) {
             fileBlob = await res.blob();
           }

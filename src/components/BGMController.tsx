@@ -83,7 +83,7 @@ export default function BGMController({ customTracks, onUpdateTracks, volume: pr
           try {
             if (track.url.startsWith('data:')) {
               // data: URL — fetch directly
-              const res = await fetch(track.url);
+              const res = await fetch(track.url, { cache: 'no-cache' });
               if (res.ok) {
                 fileBlob = await res.blob();
                 if (track.customFileId) {
@@ -92,7 +92,8 @@ export default function BGMController({ customTracks, onUpdateTracks, volume: pr
               }
             } else if (!track.isCustom) {
               // Static preset URL — fetch directly
-              const res = await fetch(track.url);
+              const busterUrl = track.url.includes('?') ? `${track.url}&t=${Date.now()}` : `${track.url}?t=${Date.now()}`;
+              const res = await fetch(busterUrl, { cache: 'no-cache' });
               if (res.ok) {
                 fileBlob = await res.blob();
               }
